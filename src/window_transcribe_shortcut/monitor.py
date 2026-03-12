@@ -48,16 +48,75 @@ class HotkeyMonitor:
         except ImportError:
             return None
 
-        keyboard.send("ctrl+c")
-        time.sleep(0.15)
-
-        win32clipboard.OpenClipboard()
+        original_clipboard = HotkeyMonitor._snapshot_clipboard()
         try:
-            if not win32clipboard.IsClipboardFormatAvailable(win32con.CF_HDROP):
-                return None
-            files = win32clipboard.GetClipboardData(win32con.CF_HDROP)
-            if not files:
-                return None
-            return Path(files[0]).resolve()
+            keyboard.send("ctrl+c")
+            time.sleep(0.15)
+
+            win32clipboard.OpenClipboard()
+            try:
+                if not win32clipboard.IsClipboardFormatAvailable(win32con.CF_HDROP):
+                    return None
+                files = win32clipboard.GetClipboardData(win32con.CF_HDROP)
+                if not files:
+                    return None
+                return Path(files[0]).resolve()
+            finally:
+                win32clipboard.CloseClipboard()
         finally:
-            win32clipboard.CloseClipboard()
+            HotkeyMonitor._restore_clipboard(original_clipboard)
+
+    @staticmethod
+    def _snapshot_clipboard() -> list[tuple[int, object]]:
+        """Capture current clipboard formats and payload to restore later."""
+        try:
+            import win32clipboard
+        except ImportError:
+            return []
+
+        captured: list[tuple[int, object]] = []
+        try:
+            win32clipboard.OpenClipboard()
+            fmt = 0
+            while True:
+                fmt = win32clipboard.EnumClipboardFormats(fmt)
+                if fmt == 0:
+                    break
+                try:
+                    captured.append((fmt, win32clipboard.GetClipboardData(fmt)))
+                except Exception:
+                    continue
+        except Exception:
+            return []
+        finally:
+            try:
+                win32clipboard.CloseClipboard()
+            except Exception:
+                pass
+        return captured
+
+    @staticmethod
+    def _restore_clipboard(formats: list[tuple[int, object]]) -> None:
+        try:
+            import win32clipboard
+        except ImportError:
+            return
+
+        if not formats:
+            return
+
+        try:
+            win32clipboard.OpenClipboard()
+            win32clipboard.EmptyClipboard()
+            for fmt, data in formats:
+                try:
+                    win32clipboard.SetClipboardData(fmt, data)
+                except Exception:
+                    continue
+        except Exception:
+            return
+        finally:
+            try:
+                win32clipboard.CloseClipboard()
+            except Exception:
+                pass

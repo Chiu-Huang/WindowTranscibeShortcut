@@ -33,6 +33,7 @@ class App:
         self.monitor = HotkeyMonitor(self._on_file_selected)
         self.tray = TrayManager(on_settings=self._open_settings, on_quit=self.stop)
         self._shutdown = threading.Event()
+        self._pipeline_lock = threading.Lock()
 
     def start(self) -> None:
         self.tray.start()
@@ -52,8 +53,9 @@ class App:
         self.ui.open(self._on_config_saved)
 
     def _on_config_saved(self, config: AppConfig) -> None:
-        self.transcriber = Transcriber(model_name=config.whisper_model)
-        self.translator = Translator(model_name=config.translator_model)
+        with self._pipeline_lock:
+            self.transcriber = Transcriber(model_name=config.whisper_model)
+            self.translator = Translator(model_name=config.translator_model)
 
     def _on_file_selected(self, path: Path) -> None:
         cfg = self.config_manager.load()
@@ -72,17 +74,21 @@ class App:
             self.tray.set_working()
             suffix = path.suffix.lower()
 
+            with self._pipeline_lock:
+                transcriber = self.transcriber
+                translator = self.translator
+
             if suffix == ".srt":
                 rows = self._load_srt(path)
                 texts = [text for _, text in rows]
-                translated = self.translator.translate(texts)
+                translated = translator.translate(texts)
                 self._save_srt(path.with_name(f"{path.stem}_translated.srt"), rows, translated)
             elif suffix in MEDIA_EXTS:
-                result = self.transcriber.transcribe(path)
+                result = transcriber.transcribe(path)
                 segments = result["segments"]
                 source_lang = result.get("language")
                 texts = [seg.get("text", "") for seg in segments]
-                translated = self.translator.translate(texts, hinted_language=source_lang)
+                translated = translator.translate(texts, hinted_language=source_lang)
                 self._save_segments_as_srt(path.with_suffix(".zh.srt"), segments, translated)
             else:
                 raise ValueError(f"Unsupported file type: {path.suffix}")
