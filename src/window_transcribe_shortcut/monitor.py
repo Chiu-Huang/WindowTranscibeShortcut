@@ -30,9 +30,14 @@ class HotkeyMonitor:
         except ImportError as exc:
             raise RuntimeError("keyboard package is required for hotkey monitor") from exc
 
-        keyboard.add_hotkey("ctrl+shift+t", self._on_hotkey)
-        while not self._stop_event.is_set():
-            time.sleep(0.1)
+        hotkey_id = None
+        try:
+            hotkey_id = keyboard.add_hotkey("ctrl+shift+t", self._on_hotkey)
+            while not self._stop_event.is_set():
+                time.sleep(0.1)
+        finally:
+            if hotkey_id is not None:
+                keyboard.remove_hotkey(hotkey_id)
 
     def _on_hotkey(self) -> None:
         path = self._get_selected_file_from_clipboard()
@@ -48,16 +53,41 @@ class HotkeyMonitor:
         except ImportError:
             return None
 
+        previous_text: str | None = None
+        had_text_format = False
+        win32clipboard.OpenClipboard()
+        try:
+            had_text_format = win32clipboard.IsClipboardFormatAvailable(win32con.CF_UNICODETEXT)
+            if had_text_format:
+                previous_text = win32clipboard.GetClipboardData(win32con.CF_UNICODETEXT)
+        except Exception:
+            previous_text = None
+            had_text_format = False
+        finally:
+            win32clipboard.CloseClipboard()
+
         keyboard.send("ctrl+c")
         time.sleep(0.15)
 
+        selected_path: Optional[Path] = None
         win32clipboard.OpenClipboard()
         try:
-            if not win32clipboard.IsClipboardFormatAvailable(win32con.CF_HDROP):
-                return None
-            files = win32clipboard.GetClipboardData(win32con.CF_HDROP)
-            if not files:
-                return None
-            return Path(files[0]).resolve()
+            if win32clipboard.IsClipboardFormatAvailable(win32con.CF_HDROP):
+                files = win32clipboard.GetClipboardData(win32con.CF_HDROP)
+                if files:
+                    selected_path = Path(files[0]).resolve()
         finally:
             win32clipboard.CloseClipboard()
+
+        if had_text_format:
+            win32clipboard.OpenClipboard()
+            try:
+                win32clipboard.EmptyClipboard()
+                if previous_text is not None:
+                    win32clipboard.SetClipboardData(win32con.CF_UNICODETEXT, previous_text)
+            except Exception:
+                pass
+            finally:
+                win32clipboard.CloseClipboard()
+
+        return selected_path

@@ -33,6 +33,7 @@ class App:
         self.monitor = HotkeyMonitor(self._on_file_selected)
         self.tray = TrayManager(on_settings=self._open_settings, on_quit=self.stop)
         self._shutdown = threading.Event()
+        self._service_lock = threading.RLock()
 
     def start(self) -> None:
         self.tray.start()
@@ -52,14 +53,28 @@ class App:
         self.ui.open(self._on_config_saved)
 
     def _on_config_saved(self, config: AppConfig) -> None:
-        self.transcriber = Transcriber(model_name=config.whisper_model)
-        self.translator = Translator(model_name=config.translator_model)
+        with self._service_lock:
+            old_transcriber = self.transcriber
+            old_translator = self.translator
+            self.transcriber = Transcriber(model_name=config.whisper_model)
+            self.translator = Translator(model_name=config.translator_model)
+
+        threading.Thread(
+            target=self._unload_models,
+            args=(old_transcriber, old_translator),
+            daemon=True,
+        ).start()
 
     def _on_file_selected(self, path: Path) -> None:
         cfg = self.config_manager.load()
-        if cfg.require_confirmation and not self._confirm(path):
+        if cfg.require_confirmation:
+            threading.Thread(target=self._confirm_and_process, args=(path,), daemon=True).start()
             return
         threading.Thread(target=self._process_file, args=(path,), daemon=True).start()
+
+    def _confirm_and_process(self, path: Path) -> None:
+        if self._confirm(path):
+            self._process_file(path)
 
     @staticmethod
     def _confirm(path: Path) -> bool:
@@ -71,18 +86,21 @@ class App:
         try:
             self.tray.set_working()
             suffix = path.suffix.lower()
+            with self._service_lock:
+                transcriber = self.transcriber
+                translator = self.translator
 
             if suffix == ".srt":
                 rows = self._load_srt(path)
                 texts = [text for _, text in rows]
-                translated = self.translator.translate(texts)
+                translated = translator.translate(texts)
                 self._save_srt(path.with_name(f"{path.stem}_translated.srt"), rows, translated)
             elif suffix in MEDIA_EXTS:
-                result = self.transcriber.transcribe(path)
+                result = transcriber.transcribe(path)
                 segments = result["segments"]
                 source_lang = result.get("language")
                 texts = [seg.get("text", "") for seg in segments]
-                translated = self.translator.translate(texts, hinted_language=source_lang)
+                translated = translator.translate(texts, hinted_language=source_lang)
                 self._save_segments_as_srt(path.with_suffix(".zh.srt"), segments, translated)
             else:
                 raise ValueError(f"Unsupported file type: {path.suffix}")
@@ -93,6 +111,11 @@ class App:
             logger.exception(f"Processing failed for {path}: {exc}")
             self.tray.set_error()
             self.tray.notify("WindowTranscibeShortcut Error", str(exc))
+
+    @staticmethod
+    def _unload_models(transcriber: Transcriber, translator: Translator) -> None:
+        transcriber.unload()
+        translator.unload()
 
     @staticmethod
     def _load_srt(path: Path) -> List[Tuple[str, str]]:

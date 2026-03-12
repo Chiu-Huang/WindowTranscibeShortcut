@@ -5,6 +5,13 @@ import threading
 from collections import Counter
 from typing import Iterable, List, Sequence
 
+try:
+    from loguru import logger
+except ImportError:
+    import logging
+
+    logger = logging.getLogger("window_transcribe_shortcut")
+
 LANG_ALIAS_TO_NLLB = {
     "zh": "zho_Hans",
     "zh-cn": "zho_Hans",
@@ -62,6 +69,7 @@ class Translator:
         self,
         texts: Iterable[str],
         hinted_language: str | None = None,
+        batch_size: int = 32,
     ) -> List[str]:
         items = list(texts)
         if not items:
@@ -76,23 +84,24 @@ class Translator:
             self._reset_timer()
 
         tokenizer.src_lang = source_lang
-        encoded = tokenizer(items, return_tensors="pt", padding=True, truncation=True)
+        forced_bos_token_id = tokenizer.convert_tokens_to_ids(TARGET_LANG)
+        use_cuda = self._model_uses_cuda(model)
 
-        try:
-            import torch
-
-            if torch.cuda.is_available():
+        translated: List[str] = []
+        for idx in range(0, len(items), batch_size):
+            batch = items[idx : idx + batch_size]
+            encoded = tokenizer(batch, return_tensors="pt", padding=True, truncation=True)
+            if use_cuda:
                 encoded = {k: v.to("cuda") for k, v in encoded.items()}
-                model = model.to("cuda")
-        except Exception:
-            pass
 
-        generated = model.generate(
-            **encoded,
-            forced_bos_token_id=tokenizer.convert_tokens_to_ids(TARGET_LANG),
-            max_new_tokens=512,
-        )
-        return tokenizer.batch_decode(generated, skip_special_tokens=True)
+            generated = model.generate(
+                **encoded,
+                forced_bos_token_id=forced_bos_token_id,
+                max_new_tokens=512,
+            )
+            translated.extend(tokenizer.batch_decode(generated, skip_special_tokens=True))
+
+        return translated
 
     def _ensure_model(self):
         if self._model is not None and self._tokenizer is not None:
@@ -102,6 +111,15 @@ class Translator:
 
         self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
         self._model = AutoModelForSeq2SeqLM.from_pretrained(self._model_name)
+
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                self._model = self._model.to("cuda")
+        except Exception as exc:
+            logger.warning(f"Unable to move translator model to CUDA: {exc}")
+
         return self._model, self._tokenizer
 
     def _reset_timer(self) -> None:
@@ -123,6 +141,14 @@ class Translator:
                     torch.cuda.empty_cache()
             except Exception:
                 pass
+
+    @staticmethod
+    def _model_uses_cuda(model: object) -> bool:
+        try:
+            first_param = next(model.parameters())
+        except (AttributeError, StopIteration):
+            return False
+        return bool(getattr(first_param, "is_cuda", False))
 
 
 def _count_range(text: str, start: int, end: int) -> int:

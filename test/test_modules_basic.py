@@ -4,6 +4,7 @@ from pathlib import Path
 
 from window_transcribe_shortcut.config_ui import AppConfig, ConfigManager
 from window_transcribe_shortcut.main import App
+from window_transcribe_shortcut.transcriber import Transcriber
 from window_transcribe_shortcut.translator import Translator
 
 
@@ -100,3 +101,83 @@ def test_save_segments_as_srt(tmp_path: Path) -> None:
     assert "1\n" in content
     assert "00:00:00,000 --> 00:00:01,200" in content
     assert "你好" in content
+
+
+def test_transcriber_handles_missing_segments(monkeypatch) -> None:
+    class FakeModel:
+        def transcribe(self, _: str):
+            return {"language": "en"}
+
+    transcriber = Transcriber()
+    monkeypatch.setattr(transcriber, "_ensure_model", lambda: FakeModel())
+    monkeypatch.setattr(transcriber, "_reset_timer", lambda: None)
+
+    result = transcriber.transcribe(Path("sample.mp4"))
+
+    assert result["language"] == "en"
+    assert result["segments"] == []
+
+
+def test_transcriber_rejects_non_dict_results(monkeypatch) -> None:
+    class FakeModel:
+        def transcribe(self, _: str):
+            return "unexpected"
+
+    transcriber = Transcriber()
+    monkeypatch.setattr(transcriber, "_ensure_model", lambda: FakeModel())
+    monkeypatch.setattr(transcriber, "_reset_timer", lambda: None)
+
+    import pytest
+
+    with pytest.raises(ValueError, match="Unexpected whisperx result type"):
+        transcriber.transcribe(Path("sample.mp4"))
+
+
+def test_translate_uses_batches(monkeypatch) -> None:
+    class FakeTensor:
+        def __init__(self) -> None:
+            self.is_cuda = False
+
+        def to(self, _: str):
+            return self
+
+    class FakeTokenizer:
+        def __init__(self) -> None:
+            self.src_lang = ""
+
+        def __call__(self, items, **_kwargs):
+            return {"input_ids": FakeTensor(), "texts": list(items)}
+
+        def convert_tokens_to_ids(self, _token: str) -> int:
+            return 1
+
+        def batch_decode(self, generated, **_kwargs):
+            return [f"translated:{item}" for item in generated]
+
+    class FakeModel:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def parameters(self):
+            yield FakeTensor()
+
+        def generate(self, **encoded):
+            self.calls.append(list(encoded["texts"]))
+            return encoded["texts"]
+
+    translator = Translator()
+    model = FakeModel()
+    tokenizer = FakeTokenizer()
+    monkeypatch.setattr(translator, "_ensure_model", lambda: (model, tokenizer))
+    monkeypatch.setattr(translator, "_reset_timer", lambda: None)
+
+    result = translator.translate(["a", "b", "c", "d", "e"], hinted_language="en", batch_size=2)
+
+    assert result == [
+        "translated:a",
+        "translated:b",
+        "translated:c",
+        "translated:d",
+        "translated:e",
+    ]
+    assert model.calls == [["a", "b"], ["c", "d"], ["e"]]
