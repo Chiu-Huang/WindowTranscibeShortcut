@@ -30,9 +30,14 @@ class HotkeyMonitor:
         except ImportError as exc:
             raise RuntimeError("keyboard package is required for hotkey monitor") from exc
 
-        keyboard.add_hotkey("ctrl+shift+t", self._on_hotkey)
-        while not self._stop_event.is_set():
-            time.sleep(0.1)
+        hotkey_id = None
+        try:
+            hotkey_id = keyboard.add_hotkey("ctrl+shift+t", self._on_hotkey)
+            while not self._stop_event.is_set():
+                time.sleep(0.1)
+        finally:
+            if hotkey_id is not None:
+                keyboard.remove_hotkey(hotkey_id)
 
     def _on_hotkey(self) -> None:
         path = self._get_selected_file_from_clipboard()
