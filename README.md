@@ -112,3 +112,7 @@ uv run python scripts_test_sample.py
 
 This picks a random file from `sample/` and prints which processing route would be used.  
 After adding real media/subtitle files, run the full app and trigger `Ctrl + Shift + T` from Explorer.
+
+## ⚠️ Clipboard-based file capture note
+
+The Explorer selection hook is intentionally implemented using simulated `Ctrl + C` + clipboard `CF_HDROP` parsing. The app now retries clipboard reads briefly to reduce race conditions, but clipboard restoration is still best-effort and can be affected by external clipboard managers or rapid user clipboard changes.

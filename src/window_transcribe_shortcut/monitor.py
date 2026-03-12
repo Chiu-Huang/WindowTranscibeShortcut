@@ -56,18 +56,20 @@ class HotkeyMonitor:
         original_clipboard = HotkeyMonitor._snapshot_clipboard()
         try:
             keyboard.send("ctrl+c")
-            time.sleep(0.15)
+            time.sleep(0.05)
 
-            win32clipboard.OpenClipboard()
-            try:
-                if not win32clipboard.IsClipboardFormatAvailable(win32con.CF_HDROP):
-                    return None
-                files = win32clipboard.GetClipboardData(win32con.CF_HDROP)
-                if not files:
-                    return None
-                return Path(files[0]).resolve()
-            finally:
-                win32clipboard.CloseClipboard()
+            for _ in range(10):
+                win32clipboard.OpenClipboard()
+                try:
+                    if win32clipboard.IsClipboardFormatAvailable(win32con.CF_HDROP):
+                        files = win32clipboard.GetClipboardData(win32con.CF_HDROP)
+                        if files:
+                            return Path(files[0]).resolve()
+                finally:
+                    win32clipboard.CloseClipboard()
+                time.sleep(0.05)
+
+            return None
         finally:
             HotkeyMonitor._restore_clipboard(original_clipboard)
 
