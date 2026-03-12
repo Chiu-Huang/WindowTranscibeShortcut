@@ -1,0 +1,5 @@
+{
+  "whisper_model": "tiny",
+  "translator_model": "facebook/nllb-200-distilled-600M",
+  "require_confirmation": true
+}
