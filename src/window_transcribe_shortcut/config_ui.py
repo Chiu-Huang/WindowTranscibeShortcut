@@ -30,8 +30,13 @@ class ConfigManager:
                 self._write_unlocked(config)
                 return config
 
-            with self._path.open("r", encoding="utf-8") as fp:
-                data = json.load(fp)
+            try:
+                with self._path.open("r", encoding="utf-8") as fp:
+                    data = json.load(fp)
+            except (json.JSONDecodeError, OSError, TypeError):
+                config = AppConfig()
+                self._write_unlocked(config)
+                return config
 
             return AppConfig(
                 whisper_model=data.get("whisper_model", AppConfig.whisper_model),
