@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -89,6 +90,7 @@ class SettingsUI:
             raise RuntimeError("flet is required to open Settings UI.") from exc
 
         config = self._config_manager.load()
+        model_pattern = re.compile(r"^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$")
 
         def app(page: "ft.Page") -> None:
             page.title = "WindowTranscibeShortcut Settings"
@@ -117,7 +119,7 @@ class SettingsUI:
 
             def on_save(_):
                 translator_value = (translator.value or "").strip()
-                if translator_value and "/" not in translator_value:
+                if translator_value and not model_pattern.match(translator_value):
                     status.value = "❌ Invalid model name (expected 'org/model')"
                     status.color = "red"
                     page.update()

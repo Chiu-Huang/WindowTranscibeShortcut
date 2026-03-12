@@ -90,10 +90,6 @@ class App:
                 transcriber = self.transcriber
                 translator = self.translator
 
-            with self._pipeline_lock:
-                transcriber = self.transcriber
-                translator = self.translator
-
             if suffix == ".srt":
                 rows = self._load_srt(path)
                 texts = [text for _, text in rows]
@@ -111,10 +107,17 @@ class App:
 
             self.tray.set_idle()
             self.tray.notify("Transcription completed", f"Finished: {path.name}")
-        except Exception as exc:
-            logger.exception(f"Processing failed for {path}: {exc}")
+        except (ValueError, RuntimeError, OSError) as exc:
+            logger.exception(f"Processing failed for {path}")
             self.tray.set_error()
-            self.tray.notify("WindowTranscibeShortcut Error", str(exc))
+            self.tray.notify(
+                "Processing failed",
+                f"{path.name}: file may be unsupported or damaged.",
+            )
+        except Exception:
+            logger.exception(f"Unexpected error while processing {path}")
+            self.tray.set_error()
+            self.tray.notify("Unexpected error", "Please check the application log for details.")
 
     @staticmethod
     def _unload_models(transcriber: Transcriber, translator: Translator) -> None:
