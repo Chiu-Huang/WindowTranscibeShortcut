@@ -1,103 +1,85 @@
 from __future__ import annotations
 
-import argparse
-import platform
-import sys
-import traceback
-from datetime import datetime
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+import pytest
 
-LOG_PATH = ROOT / "test" / "results" / "test_transcription.log"
-
-
-def log(message: str) -> None:
-    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    line = f"[{datetime.now().isoformat(timespec='seconds')}] {message}"
-    print(line)
-    with LOG_PATH.open("a", encoding="utf-8") as fp:
-        fp.write(line + "\n")
+from window_transcribe_shortcut.main import App
+from window_transcribe_shortcut.transcriber import Transcriber
+from window_transcribe_shortcut.translator import Translator
 
 
-def run(sample_file: Path) -> int:
-    if LOG_PATH.exists():
-        LOG_PATH.unlink()
-
-    log("=== test_transcription.py start ===")
-    log(f"python={sys.version.split()[0]} platform={platform.platform()}")
-
-    log("1) CUDA availability check")
-    try:
-        import torch
-
-        cuda_available = torch.cuda.is_available()
-        device_count = torch.cuda.device_count() if cuda_available else 0
-        log(f"CUDA available: {cuda_available}, device_count: {device_count}")
-    except Exception as exc:  # noqa: BLE001
-        log(f"CUDA check failed: {exc}")
-
-    log(f"2) Transcription model test input: {sample_file}")
-    if not sample_file.exists():
-        log("ERROR: sample file does not exist.")
-        return 1
-
-    try:
-        from window_transcribe_shortcut.transcriber import Transcriber
-
-        transcriber = Transcriber(model_name="tiny")
-        result = transcriber.transcribe(sample_file)
-        log(f"Transcription language={result.get('language')} segments={len(result.get('segments', []))}")
-    except Exception as exc:  # noqa: BLE001
-        log(f"ERROR: transcription failed: {exc}")
-        log(traceback.format_exc())
-        return 1
-
-    log("3) Translation + language detection test")
-    try:
-        from window_transcribe_shortcut.translator import Translator
-
-        translator = Translator()
-        detected = translator.detect_source_language(["hello world"]) 
-        translated = translator.translate(["hello world"], hinted_language="en")
-        log(f"Detected='hello world' -> {detected}; translated sample count={len(translated)}")
-    except Exception as exc:  # noqa: BLE001
-        log(f"ERROR: translation failed: {exc}")
-        log(traceback.format_exc())
-        return 1
-
-    log("4) SRT write test")
-    try:
-        from window_transcribe_shortcut.main import App
-
-        srt_path = ROOT / "test" / "results" / "transcription_output.srt"
-        segments = result.get("segments", [])
-        translated_texts = [seg.get("text", "") for seg in segments]
-        App._save_segments_as_srt(srt_path, segments, translated_texts)
-        log(f"SRT written: {srt_path} size={srt_path.stat().st_size} bytes")
-    except Exception as exc:  # noqa: BLE001
-        log(f"ERROR: srt write failed: {exc}")
-        log(traceback.format_exc())
-        return 1
-
-    log("=== test_transcription.py success ===")
-    return 0
+@pytest.fixture(scope="session")
+def sample_file() -> Path:
+    path = Path("sample/Codex with MCP servers.mp4")
+    if not path.exists():
+        pytest.skip(f"Sample media file does not exist: {path}")
+    return path
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "sample_file",
-        nargs="?",
-        default="sample/Codex with MCP servers.mp4",
-        help="Path to sample media file",
-    )
-    args = parser.parse_args()
-    return run(Path(args.sample_file))
+@pytest.fixture(scope="session")
+def transcriber(pytestconfig: pytest.Config) -> Transcriber:
+    if not pytestconfig.getoption("--run-integration"):
+        pytest.skip("need --run-integration to initialize whisperx model")
+    return Transcriber(model_name="tiny")
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+@pytest.fixture(scope="session")
+def translator(pytestconfig: pytest.Config) -> Translator:
+    if not pytestconfig.getoption("--run-integration"):
+        pytest.skip("need --run-integration to initialize transformer model")
+    return Translator()
+
+
+def test_cuda_availability_check() -> None:
+    torch = pytest.importorskip("torch")
+    available = torch.cuda.is_available()
+    assert isinstance(available, bool)
+
+
+@pytest.mark.integration
+def test_transcribe_structure(sample_file: Path, transcriber: Transcriber) -> None:
+    result = transcriber.transcribe(sample_file)
+
+    assert "language" in result
+    assert "segments" in result
+    assert isinstance(result["segments"], list)
+    assert len(result["segments"]) > 0
+
+    first = result["segments"][0]
+    assert "text" in first
+    assert "start" in first
+    assert "end" in first
+    assert str(first["text"]).strip() != ""
+
+
+@pytest.mark.integration
+def test_translate_transcribed_text(
+    sample_file: Path, transcriber: Transcriber, translator: Translator
+) -> None:
+    result = transcriber.transcribe(sample_file)
+    texts = [str(seg.get("text", "")) for seg in result["segments"] if str(seg.get("text", "")).strip()]
+    assert texts, "transcription produced no non-empty texts"
+
+    translated = translator.translate(texts, hinted_language=result.get("language"))
+
+    assert len(translated) == len(texts)
+    assert any(t.strip() for t in translated)
+
+
+@pytest.mark.integration
+def test_save_srt(
+    tmp_path: Path, sample_file: Path, transcriber: Transcriber, translator: Translator
+) -> None:
+    result = transcriber.transcribe(sample_file)
+    segments = result["segments"]
+    texts = [str(seg.get("text", "")) for seg in segments]
+    translated = translator.translate(texts, hinted_language=result.get("language"))
+
+    out = tmp_path / "integration_output.srt"
+    App._save_segments_as_srt(out, segments, translated)
+
+    assert out.exists()
+    content = out.read_text(encoding="utf-8")
+    assert "-->" in content
+    assert len(content) > 100
