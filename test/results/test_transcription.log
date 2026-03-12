@@ -1,6 +1,0 @@
-[2026-03-12T06:47:51] === test_transcription.py start ===
-[2026-03-12T06:47:51] python=3.10.19 platform=Linux-6.12.47-x86_64-with-glibc2.39
-[2026-03-12T06:47:51] 1) CUDA availability check
-[2026-03-12T06:47:51] CUDA check failed: No module named 'torch'
-[2026-03-12T06:47:51] 2) Transcription model test input: sample/Codex with MCP servers.mp4
-[2026-03-12T06:47:51] ERROR: sample file does not exist.
