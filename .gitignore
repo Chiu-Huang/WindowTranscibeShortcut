@@ -5,7 +5,7 @@ __pycache__/
 *.so
 .Python
 
-# 虚拟环境
+# Virtual environments
 .venv/
 venv/
 ENV/
@@ -19,9 +19,18 @@ uv.lock
 .idea/
 *.swp
 
-# 项目特定
+# Local runtime config / logs
 config.json
-# sample/*.mp4
+*.log
+
+# Large model artifacts
+*.pt
+*.bin
+*.ckpt
+*.onnx
+*.safetensors
+
+# Sample outputs (keep placeholders/docs)
 sample/*.srt
 sample/*.txt
 !sample/.gitkeep
