@@ -5,7 +5,14 @@ import threading
 from pathlib import Path
 from typing import List, Tuple
 
-from loguru import logger
+try:
+    from loguru import logger
+except ImportError:
+    import logging
+
+    logger = logging.getLogger("window_transcribe_shortcut")
+    if not logger.handlers:
+        logging.basicConfig(level=logging.INFO)
 
 from .config_ui import AppConfig, ConfigManager, SettingsUI
 from .monitor import HotkeyMonitor
@@ -83,7 +90,7 @@ class App:
             self.tray.set_idle()
             self.tray.notify("Transcription completed", f"Finished: {path.name}")
         except Exception as exc:
-            logger.exception("Processing failed for {}: {}", path, exc)
+            logger.exception(f"Processing failed for {path}: {exc}")
             self.tray.set_error()
             self.tray.notify("WindowTranscibeShortcut Error", str(exc))
 
