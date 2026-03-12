@@ -90,6 +90,10 @@ class App:
                 transcriber = self.transcriber
                 translator = self.translator
 
+            with self._pipeline_lock:
+                transcriber = self.transcriber
+                translator = self.translator
+
             if suffix == ".srt":
                 rows = self._load_srt(path)
                 texts = [text for _, text in rows]

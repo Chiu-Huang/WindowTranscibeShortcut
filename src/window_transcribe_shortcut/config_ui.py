@@ -1,12 +1,29 @@
 from __future__ import annotations
 
 import json
+import os
+import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from threading import Lock
 from typing import Callable, Optional
 
-CONFIG_PATH = Path("config.json")
+
+def get_config_dir() -> Path:
+    """Get a stable per-user config directory across platforms."""
+    if os.name == "nt":
+        base = Path(os.getenv("APPDATA", "~")).expanduser()
+    elif os.name == "darwin":
+        base = Path("~/Library/Application Support").expanduser()
+    else:
+        base = Path(os.getenv("XDG_CONFIG_HOME", "~/.config")).expanduser()
+
+    config_dir = base / "WindowTranscibeShortcut"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir
+
+
+CONFIG_PATH = get_config_dir() / "config.json"
 
 
 @dataclass
@@ -51,6 +68,7 @@ class ConfigManager:
             self._write_unlocked(config)
 
     def _write_unlocked(self, config: AppConfig) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
         with self._path.open("w", encoding="utf-8") as fp:
             json.dump(asdict(config), fp, indent=2, ensure_ascii=False)
 
@@ -62,6 +80,9 @@ class SettingsUI:
         self._config_manager = config_manager
 
     def open(self, on_saved: Optional[Callable[[AppConfig], None]] = None) -> None:
+        threading.Thread(target=self._open_ui, args=(on_saved,), daemon=True).start()
+
+    def _open_ui(self, on_saved: Optional[Callable[[AppConfig], None]] = None) -> None:
         try:
             import flet as ft
         except ImportError as exc:
@@ -95,16 +116,36 @@ class SettingsUI:
             status = ft.Text(value="")
 
             def on_save(_):
+                translator_value = (translator.value or "").strip()
+                if translator_value and "/" not in translator_value:
+                    status.value = "❌ Invalid model name (expected 'org/model')"
+                    status.color = "red"
+                    page.update()
+                    return
+
                 new_cfg = AppConfig(
                     whisper_model=whisper.value or AppConfig.whisper_model,
-                    translator_model=translator.value or AppConfig.translator_model,
+                    translator_model=translator_value or AppConfig.translator_model,
                     require_confirmation=bool(confirm.value),
                 )
                 self._config_manager.save(new_cfg)
-                status.value = "Saved"
+
+                if new_cfg.whisper_model != config.whisper_model:
+                    status.value = f"✓ Saved! First run will download: {new_cfg.whisper_model}"
+                else:
+                    status.value = "✓ Saved successfully!"
+                status.color = "green"
                 page.update()
                 if on_saved:
                     on_saved(new_cfg)
+
+                def close_after_delay() -> None:
+                    import time
+
+                    time.sleep(1.2)
+                    page.window_close()
+
+                threading.Thread(target=close_after_delay, daemon=True).start()
 
             page.add(
                 ft.Column(
