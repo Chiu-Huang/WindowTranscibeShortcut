@@ -1,0 +1,2 @@
+[console_scripts]
+window-transcribe-shortcut = window_transcribe_shortcut.main:main
