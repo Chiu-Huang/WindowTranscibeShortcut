@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 虚拟环境
+.venv/
+venv/
+ENV/
+
+# uv
+uv.lock
+.uv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# 项目特定
+config.json
+# sample/*.mp4
+sample/*.srt
+sample/*.txt
+!sample/.gitkeep
+!sample/README.md
