@@ -69,3 +69,46 @@ When implementing this project:
 1. **Concurrency**: Ensure the GUI, Tray Icon, Hotkey Monitor, and AI Processing Pipeline all run on appropriate threads without blocking the main thread.
 2. **Robustness**: Implement strict `try-except` blocks around CUDA memory allocations.
 3. **Step-by-Step**: Please acknowledge this architecture, and ask the user which module you should generate first, or begin generating them sequentially.
+
+
+## 📁 Project Structure
+
+```text
+.
+├── config.json
+├── pyproject.toml
+├── sample/                # Put test files here manually
+├── src/
+│   └── window_transcribe_shortcut/
+│       ├── main.py
+│       ├── config_ui.py
+│       ├── monitor.py
+│       ├── transcriber.py
+│       ├── translator.py
+│       └── tray_manager.py
+└── main.py                # Thin compatibility entrypoint
+```
+
+## 📦 Setup with `uv`
+
+```bash
+uv sync
+```
+
+Run app:
+
+```bash
+uv run window-transcribe-shortcut
+```
+
+## 🧪 Simple Testing (using `sample/`)
+
+1. Put one or more files in `sample/` (e.g., `.srt`, `.mp4`, `.wav`).
+2. Run the quick route-check script:
+
+```bash
+uv run python scripts_test_sample.py
+```
+
+This picks a random file from `sample/` and prints which processing route would be used.  
+After adding real media/subtitle files, run the full app and trigger `Ctrl + Shift + T` from Explorer.

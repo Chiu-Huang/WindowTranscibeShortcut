@@ -1,0 +1,32 @@
+[project]
+name = "window-transcribe-shortcut"
+version = "0.1.0"
+description = "Windows hotkey-driven transcription and translation to Chinese"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "flet>=0.23.0",
+  "pystray>=0.19.5",
+  "pillow>=10.4.0",
+  "plyer>=2.1.0",
+  "keyboard>=0.13.5",
+  "pywin32>=306; platform_system == 'Windows'",
+  "loguru>=0.7.2",
+  "pysrt>=1.1.2",
+  "whisperx>=3.1.1",
+  "transformers>=4.44.0",
+  "torch>=2.2.0",
+]
+
+[project.scripts]
+window-transcribe-shortcut = "window_transcribe_shortcut.main:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
