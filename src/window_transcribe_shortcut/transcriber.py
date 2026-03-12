@@ -27,9 +27,20 @@ class Transcriber:
             self._reset_timer()
 
         result = model.transcribe(str(media_path))
+        if not isinstance(result, dict):
+            raise ValueError(f"Unexpected whisperx result type: {type(result)!r}")
+
+        raw_segments = result.get("segments")
+        if raw_segments is None:
+            segments: List[Dict[str, Any]] = []
+        elif isinstance(raw_segments, list):
+            segments = raw_segments
+        else:
+            segments = list(raw_segments)
+
         return {
             "language": str(result.get("language", "unknown")),
-            "segments": list(result.get("segments", [])),
+            "segments": segments,
         }
 
     def _ensure_model(self):
