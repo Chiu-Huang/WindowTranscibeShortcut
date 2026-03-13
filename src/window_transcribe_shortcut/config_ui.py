@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
+import sys
 import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -81,7 +83,11 @@ class SettingsUI:
         self._config_manager = config_manager
 
     def open(self, on_saved: Optional[Callable[[AppConfig], None]] = None) -> None:
-        threading.Thread(target=self._open_ui, args=(on_saved,), daemon=True).start()
+        self._open_ui(on_saved)
+
+    @staticmethod
+    def open_in_subprocess() -> subprocess.Popen:
+        return subprocess.Popen([sys.executable, "-m", "window_transcribe_shortcut.config_ui"])
 
     def _open_ui(self, on_saved: Optional[Callable[[AppConfig], None]] = None) -> None:
         try:
@@ -162,3 +168,13 @@ class SettingsUI:
             )
 
         ft.app(target=app)
+
+
+def main() -> None:
+    manager = ConfigManager()
+    ui = SettingsUI(manager)
+    ui.open()
+
+
+if __name__ == "__main__":
+    main()

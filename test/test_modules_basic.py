@@ -133,6 +133,24 @@ def test_transcriber_rejects_non_dict_results(monkeypatch) -> None:
         transcriber.transcribe(Path("sample.mp4"))
 
 
+def test_transcriber_reports_progress(monkeypatch) -> None:
+    class FakeModel:
+        def transcribe(self, _: str):
+            return {
+                "language": "en",
+                "segments": [{"text": "a"}, {"text": "b"}, {"text": "c"}],
+            }
+
+    transcriber = Transcriber()
+    monkeypatch.setattr(transcriber, "_ensure_model", lambda: FakeModel())
+    monkeypatch.setattr(transcriber, "_reset_timer", lambda: None)
+    calls = []
+
+    transcriber.transcribe(Path("sample.mp4"), progress_callback=lambda cur, total: calls.append((cur, total)))
+
+    assert calls == [(1, 3), (2, 3), (3, 3)]
+
+
 def test_translate_uses_batches(monkeypatch) -> None:
     class FakeTensor:
         def __init__(self) -> None:
