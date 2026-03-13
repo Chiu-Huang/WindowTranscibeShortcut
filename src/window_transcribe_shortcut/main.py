@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ctypes
 import threading
+import time
 from pathlib import Path
 from typing import List, Tuple
 
@@ -27,7 +28,6 @@ class App:
     def __init__(self) -> None:
         self.config_manager = ConfigManager()
         cfg = self.config_manager.load()
-        self.ui = SettingsUI(self.config_manager)
         self.transcriber = Transcriber(model_name=cfg.whisper_model)
         self.translator = Translator(model_name=cfg.translator_model)
         self.monitor = HotkeyMonitor(self._on_file_selected)
@@ -50,7 +50,16 @@ class App:
         self.translator.unload()
 
     def _open_settings(self) -> None:
-        self.ui.open(self._on_config_saved)
+        proc = SettingsUI.open_in_subprocess()
+
+        def wait_and_reload() -> None:
+            proc.wait()
+            try:
+                self._on_config_saved(self.config_manager.load())
+            except Exception:
+                logger.exception("Failed to reload configuration after settings UI closed")
+
+        threading.Thread(target=wait_and_reload, daemon=True).start()
 
     def _on_config_saved(self, config: AppConfig) -> None:
         with self._service_lock:
@@ -86,6 +95,7 @@ class App:
         try:
             self.tray.set_working()
             suffix = path.suffix.lower()
+            started_at = time.perf_counter()
             with self._service_lock:
                 transcriber = self.transcriber
                 translator = self.translator
@@ -96,7 +106,16 @@ class App:
                 translated = translator.translate(texts)
                 self._save_srt(path.with_name(f"{path.stem}_translated.srt"), rows, translated)
             elif suffix in MEDIA_EXTS:
-                result = transcriber.transcribe(path)
+                progress_state = {"last": -1}
+
+                def on_progress(current: int, total: int) -> None:
+                    percent = int(current * 100 / max(total, 1))
+                    if percent == progress_state["last"]:
+                        return
+                    progress_state["last"] = percent
+                    self.tray.set_progress(percent)
+
+                result = transcriber.transcribe(path, progress_callback=on_progress)
                 segments = result["segments"]
                 source_lang = result.get("language")
                 texts = [seg.get("text", "") for seg in segments]
@@ -106,6 +125,8 @@ class App:
                 raise ValueError(f"Unsupported file type: {path.suffix}")
 
             self.tray.set_idle()
+            elapsed = time.perf_counter() - started_at
+            logger.info(f"Finished processing {path.name} in {elapsed:.1f}s")
             self.tray.notify("Transcription completed", f"Finished: {path.name}")
         except (ValueError, RuntimeError, OSError) as exc:
             logger.exception(f"Processing failed for {path}")

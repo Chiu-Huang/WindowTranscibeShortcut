@@ -3,7 +3,7 @@ from __future__ import annotations
 import gc
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, TypedDict
+from typing import Any, Callable, Dict, List, TypedDict
 
 
 class TranscriptionResult(TypedDict):
@@ -21,7 +21,11 @@ class Transcriber:
         self._timer: threading.Timer | None = None
         self._lock = threading.Lock()
 
-    def transcribe(self, media_path: Path) -> TranscriptionResult:
+    def transcribe(
+        self,
+        media_path: Path,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> TranscriptionResult:
         with self._lock:
             model = self._ensure_model()
             self._reset_timer()
@@ -37,6 +41,11 @@ class Transcriber:
             segments = raw_segments
         else:
             segments = list(raw_segments)
+
+        if progress_callback is not None:
+            total = max(len(segments), 1)
+            for idx in range(total):
+                progress_callback(idx + 1, total)
 
         return {
             "language": str(result.get("language", "unknown")),

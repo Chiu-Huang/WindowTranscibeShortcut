@@ -65,6 +65,10 @@ class TrayManager:
     def set_working(self) -> None:
         self._set_state("working", "WindowTranscibeShortcut - Processing...")
 
+    def set_progress(self, percent: int) -> None:
+        bounded = max(0, min(percent, 100))
+        self._set_state("working", f"WindowTranscibeShortcut - Processing... {bounded}%")
+
     def set_error(self) -> None:
         self._set_state("error", "WindowTranscibeShortcut - Error")
 
