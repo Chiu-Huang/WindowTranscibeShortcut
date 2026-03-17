@@ -29,5 +29,5 @@ sample/*.txt
 !sample/.gitkeep
 !sample/README.md
 
-
+models--Systran--faster-whisper-tiny/
 .env

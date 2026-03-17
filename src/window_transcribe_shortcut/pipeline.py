@@ -24,7 +24,11 @@ def _translated_segments(result: TranscriptResult, translated_texts: list[str]) 
 
 
 def run_pipeline(video_path: str, source_language: str | None, target_language: str = "zh") -> Path:
-    asr = WhisperXBackend(model_name=settings.whisper_model, device=settings.whisper_device)
+    asr = WhisperXBackend(
+        model_name=settings.whisper_model,
+        device=settings.whisper_device,
+        model_path=str(settings.whisper_model_path) if settings.whisper_model_path else None,
+    )
     result = asr.transcribe(video_path=video_path, source_language=source_language)
 
     output_segments = result.segments

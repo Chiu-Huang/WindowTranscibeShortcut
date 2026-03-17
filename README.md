@@ -24,6 +24,16 @@ Set your DeepL key in `.env`:
 WTS_DEEPL_API_KEY=...
 ```
 
+Optional WhisperX settings:
+
+```env
+WTS_WHISPER_MODEL=small
+WTS_WHISPER_MODEL_PATH=C:/models/whisperx
+WTS_WHISPER_DEVICE=cpu
+```
+
+`WTS_WHISPER_MODEL_PATH` is optional and is passed to WhisperX as the model download/cache directory.
+
 ## Usage
 
 ```bash
