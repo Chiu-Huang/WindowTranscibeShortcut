@@ -5,6 +5,9 @@ description = "Auto transcription and translation to Chinese"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "loguru",
+  "pydantic-settings",
+  "requests",
   "whisperx",
 ]
 
