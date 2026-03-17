@@ -29,14 +29,22 @@ def run_pipeline(video_path: str, source_language: str | None, target_language: 
 
     output_segments = result.segments
     if not _is_chinese(result.language):
-        logger.info("Detected language '{}' is not Chinese. Running DeepL translation.", result.language)
-        translator = DeepLBackend(api_key=settings.deepl_api_key)
-        translated = translator.translate_texts(
-            texts=[seg.text for seg in result.segments],
-            source_language=result.language,
-            target_language=target_language,
-        )
-        output_segments = _translated_segments(result, translated)
+        # Only use DeepL when a real API key is provided (not empty or the placeholder from .env.example)
+        deepl_key = (settings.deepl_api_key or "").strip()
+        if deepl_key and deepl_key.lower() != "your_deepl_api_key":
+            logger.info("Detected language '{}' is not Chinese. Running DeepL translation.", result.language)
+            translator = DeepLBackend(api_key=deepl_key)
+            translated = translator.translate_texts(
+                texts=[seg.text for seg in result.segments],
+                source_language=result.language,
+                target_language=target_language,
+            )
+            output_segments = _translated_segments(result, translated)
+        else:
+            logger.info(
+                "DeepL API key not set or placeholder; skipping translation and keeping ASR text (language: '{}').",
+                result.language,
+            )
     else:
         logger.info("Detected language '{}' is Chinese. Skip translation.", result.language)
 

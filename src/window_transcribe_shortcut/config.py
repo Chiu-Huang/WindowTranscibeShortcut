@@ -9,7 +9,7 @@ class AppSettings(BaseSettings):
     """Application configuration loaded from environment variables."""
 
     deepl_api_key: str = ""
-    whisper_model: str = "small"
+    whisper_model: str = "tiny"
     whisper_device: str = "cpu"
     output_dir: Path = Path("output")
     source_lang_default: str = "en"

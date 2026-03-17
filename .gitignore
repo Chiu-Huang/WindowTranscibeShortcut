@@ -19,6 +19,8 @@ uv.lock
 .idea/
 *.swp
 
+src/window_transcribe_shortcut.egg-info
+
 # 项目特定
 config.json
 # sample/*.mp4
@@ -26,3 +28,6 @@ sample/*.srt
 sample/*.txt
 !sample/.gitkeep
 !sample/README.md
+
+
+.env
