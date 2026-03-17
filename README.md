@@ -1,48 +1,62 @@
-Use pydantics-settings, env to store the API for deepl 
-So basically build transcription service, and then if output is not Chinese, stack a deepl translate on top, and then output Chinese. 
-and have some presets , by default eng to Chinese 
-  英文 → 中文字幕
-  日文 → 中文字幕
-  中文 → 中文字幕
+# Window Transcribe Shortcut
 
-should be quite simple from now, a simple bat script opening, and then dragging the video to bat to trigger the main. 
+Minimal modular tool to convert video/audio to **Chinese subtitles (SRT)**.
 
-Try modular approach and minimistic, loguru for logging, if error, prompt and show the error log as well as logging it. 
+- Transcribe with WhisperX
+- Auto-translate non-Chinese transcripts via DeepL
+- Presets:
+  - `en2zh` 英文 → 中文字幕 (default)
+  - `ja2zh` 日文 → 中文字幕
+  - `zh2zh` 中文 → 中文字幕 (no translation)
+- Logging with `loguru`
+- Errors are both logged and shown to user
 
+## Setup
 
+```bash
+pip install -e .
+cp .env.example .env
+```
 
+Set your DeepL key in `.env`:
 
-├─ pyproject.toml
-├─ README.md
-├─ .python-version
-├─ src/
-│  └─ subtool/
-│     ├─ __init__.py
-│     ├─ cli.py
-│     ├─ config.py
-│     ├─ pipeline.py
-│     ├─ io_utils.py
-│     ├─ naming.py
-│     ├─ subtitle_formats.py
-│     ├─ asr/
-│     │  ├─ __init__.py
-│     │  ├─ base.py
-│     │  └─ whisperx_backend.py
-│     ├─ translators/
-│     │  ├─ __init__.py
-│     │  ├─ base.py
-│     │  ├─ deepl_backend.py
-│     │  ├─ llm_backend.py
-│     ├─ video/
-│     │  ├─ __init__.py
-│     │  ├─ mux.py
-│     │  └─ burn.py
-│     └─ presets/
-│        ├─ __init__.py
-│        └─ profiles.py
-├─ scripts/
-│  ├─ transcribe_zh.bat
-│  ├─ en_to_zh.bat
-│  ├─ ja_to_zh.bat
-│  └─ mux_softsub.bat
-└─ tests/
+```env
+WTS_DEEPL_API_KEY=...
+```
+
+Optional WhisperX settings:
+
+```env
+WTS_WHISPER_MODEL=small
+WTS_WHISPER_MODEL_PATH=C:/models/whisperx
+WTS_WHISPER_DEVICE=cpu
+```
+
+`WTS_WHISPER_MODEL_PATH` is optional and is passed to WhisperX as the model download/cache directory.
+
+## Usage
+
+```bash
+window-transcribe-shortcut path/to/video.mp4 --preset en2zh
+```
+
+Optional:
+
+```bash
+window-transcribe-shortcut path/to/video.mp4 --preset ja2zh
+window-transcribe-shortcut path/to/video.mp4 --preset zh2zh
+window-transcribe-shortcut path/to/video.mp4 --source-lang en
+```
+
+Output is written to `output/<input_name>.zh.srt` by default.
+
+## Windows drag-and-drop
+
+Use scripts in `scripts/`:
+
+- `transcribe_zh.bat`
+- `en_to_zh.bat`
+- `ja_to_zh.bat`
+- `zh_to_zh.bat`
+
+Drag a video file onto a `.bat` file to run.
