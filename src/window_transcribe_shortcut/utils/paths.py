@@ -13,9 +13,9 @@ def ensure_video_file(path: Path) -> Path:
 
 
 def build_output_base(video_path: Path, output_dir: Path) -> Path:
-    resolved_output_dir = output_dir.expanduser().resolve()
-    resolved_output_dir.mkdir(parents=True, exist_ok=True)
-    return resolved_output_dir / video_path.stem
+    # Save subtitle in the same directory as the video file
+    video_dir = video_path.parent.resolve()
+    return video_dir / video_path.stem
 
 
 def resolve_output_path(video_path: Path, output: Path | None, output_dir: Path) -> Path:
