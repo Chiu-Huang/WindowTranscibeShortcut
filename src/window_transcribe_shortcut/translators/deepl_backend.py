@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import requests
 
-from window_transcribe_shortcut.translators.base import Translator
+from window_transcribe_shortcut.translators.base import (
+    TranslationUnavailableError,
+    Translator,
+)
 
 _LANG_MAP = {
     "en": "EN",
@@ -14,11 +17,23 @@ _LANG_MAP = {
 
 
 class DeepLTranslator(Translator):
-    def __init__(self, api_key: str, base_url: str) -> None:
+    service_name = "deepl"
+
+    def __init__(self, api_key: str | None, base_url: str) -> None:
         self.api_key = api_key
         self.url = f"{base_url.rstrip('/')}/translate"
 
-    def translate_lines(self, lines: list[str], source_lang: str | None, target_lang: str) -> list[str]:
+    def is_available(self) -> tuple[bool, str | None]:
+        if self.api_key and self.api_key != "your_deepl_api_key":
+            return True, None
+        return False, "DEEPL_API_KEY is not configured"
+
+    def translate_lines(
+        self, lines: list[str], source_lang: str | None, target_lang: str
+    ) -> list[str]:
+        available, reason = self.is_available()
+        if not available:
+            raise TranslationUnavailableError(reason or "DeepL is unavailable")
         if not lines:
             return []
         payload: dict[str, object] = {

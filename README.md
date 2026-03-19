@@ -12,7 +12,7 @@ The main bottleneck in the original drag-and-drop workflow was repeated Python s
 - `pydantic-settings` + `.env` configuration
 - WhisperX transcription backend with in-process model caching
 - FastAPI server for persistent local inference
-- DeepL translation backend (for non-Chinese source)
+- Configurable translation backends with DeepL, Google web translate, and LibreTranslate fallback support
 - Presets:
   - `en2zh` (英文 → 中文字幕)
   - `ja2zh` (日文 → 中文字幕)
@@ -30,8 +30,13 @@ Create `.env` in project root:
 
 ```env
 DEEPL_API_KEY=your_deepl_key
-# Optional
+# Optional translation backend settings
 DEEPL_BASE_URL=https://api-free.deepl.com/v2
+TRANSLATION_SERVICE=deepl
+TRANSLATION_FALLBACK_SERVICES=google_web,libretranslate
+GOOGLE_TRANSLATE_BASE_URL=https://translate.googleapis.com/translate_a/single
+LIBRETRANSLATE_BASE_URL=
+LIBRETRANSLATE_API_KEY=
 WHISPER_MODEL=small
 WHISPER_DEVICE=cpu
 WHISPER_COMPUTE_TYPE=int8
@@ -39,6 +44,13 @@ OUTPUT_DIR=outputs
 API_HOST=127.0.0.1
 API_PORT=8765
 ```
+
+
+### Translation backend behavior
+- `TRANSLATION_SERVICE` chooses the primary translator. Supported values: `deepl`, `google_web`, `libretranslate`.
+- `TRANSLATION_FALLBACK_SERVICES` is an ordered comma-separated fallback list. Duplicate services are ignored.
+- If the primary translator is not configured or fails at runtime, the app automatically tries the next configured fallback.
+- If every configured translation service is unavailable, the app skips translation and writes the original transcript instead of failing the whole job.
 
 ## Direct CLI usage
 You can still run the original one-shot CLI if you want:
