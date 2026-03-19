@@ -44,6 +44,21 @@ Optional output path:
 window-transcribe-shortcut /path/to/video.mp4 --preset ja2zh --output ./my_subtitle.srt
 ```
 
+Inspect presets:
+```bash
+window-transcribe-shortcut --list-presets
+```
+
+Inspect effective configuration:
+```bash
+window-transcribe-shortcut --show-config
+```
+
+Verbose debugging:
+```bash
+window-transcribe-shortcut /path/to/video.mp4 --preset en2zh --debug
+```
+
 ## Windows drag & drop
 Use files in `scripts/`:
 - `transcribe_zh.bat` (default preset: `en2zh`)
