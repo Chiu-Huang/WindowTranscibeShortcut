@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     device: str = Field(default="cpu", alias="WHISPER_DEVICE")
     compute_type: str = Field(default="int8", alias="WHISPER_COMPUTE_TYPE")
     output_dir: Path = Field(default=Path("outputs"), alias="OUTPUT_DIR")
+    api_host: str = Field(default="127.0.0.1", alias="API_HOST")
+    api_port: int = Field(default=8765, alias="API_PORT")
 
 
 settings = Settings()
