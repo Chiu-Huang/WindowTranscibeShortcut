@@ -21,6 +21,13 @@ class TranscriptionService:
             compute_type=settings.compute_type,
         )
 
+    @property
+    def is_model_loaded(self) -> bool:
+        return self.asr.is_loaded
+
+    def preload_model(self, source_lang: str | None = None) -> None:
+        self.asr.preload(language=source_lang)
+
     def run(self, video_path: Path, output_path: Path, source_lang: str | None, target_lang: str) -> Transcript:
         logger.info('Starting transcription for {}', video_path)
         transcript = self.asr.transcribe(video_path, language=source_lang)

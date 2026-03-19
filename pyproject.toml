@@ -8,11 +8,14 @@ dependencies = [
   "loguru",
   "pydantic-settings",
   "requests",
+  "fastapi",
+  "uvicorn",
   "whisperx",
 ]
 
 [project.scripts]
 window-transcribe-shortcut = "window_transcribe_shortcut.main:main"
+window-transcribe-shortcut-api = "window_transcribe_shortcut.server:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
