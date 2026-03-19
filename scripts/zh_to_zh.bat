@@ -5,5 +5,5 @@ if "%~1"=="" (
   pause
   exit /b 1
 )
-python -m window_transcribe_shortcut "%~1" --preset zh2zh
+uv run window-transcribe-shortcut "%~1" --preset zh2zh
 if errorlevel 1 pause

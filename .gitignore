@@ -26,3 +26,11 @@ sample/*.srt
 sample/*.txt
 !sample/.gitkeep
 !sample/README.md
+
+models--Systran--faster-whisper-tiny/
+outputs/
+
+window_transcribe_shortcut.egg-info/
+
+.env
+command.md
