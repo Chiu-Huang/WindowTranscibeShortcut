@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-DEFAULT_SUBTITLE_SUFFIX = '.zh.srt'
+DEFAULT_SUBTITLE_SUFFIX = '.srt'
 
 
 def ensure_video_file(path: Path) -> Path:

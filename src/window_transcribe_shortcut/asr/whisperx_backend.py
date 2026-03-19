@@ -44,9 +44,6 @@ class WhisperXBackend(ASRBackend):
         return Transcript(language=detected, segments=segments)
 
     def _get_model(self, language: str | None = None):
-        if self._model is not None:
-            return self._model
-
         with self._model_lock:
             if self._model is None:
                 import whisperx
@@ -58,4 +55,18 @@ class WhisperXBackend(ASRBackend):
                     compute_type=self.compute_type,
                     language=language,
                 )
+                self._cached_language = language
+            elif self._cached_language != language:
+                import whisperx
+
+                logger.info("Language mismatch: reloading WhisperX model for language {}", language)
+                self._model = whisperx.load_model(
+                    self.model_name,
+                    self.device,
+                    compute_type=self.compute_type,
+                    language=language,
+                )
+                self._cached_language = language
+        if self._model is None:
+            raise RuntimeError('Failed to load WhisperX model for unknown reasons')
         return self._model
