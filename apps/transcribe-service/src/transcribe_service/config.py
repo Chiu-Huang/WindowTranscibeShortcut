@@ -6,8 +6,8 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-ROOT_DIR = Path(__file__).resolve().parents[4]
-ENV_FILE = ROOT_DIR / ".env"
+APP_DIR = Path(__file__).resolve().parents[2]
+ENV_FILE = APP_DIR / ".env"
 
 
 class Settings(BaseSettings):

@@ -3,7 +3,7 @@
 This repository is now a Python mono-repo/workspace with three independently installable applications under `apps/`:
 
 - `apps/orchestrator/` — preset resolution, job coordination, subtitle writing, and the compatibility CLI/API.
-- `apps/transcribe-service/` — WhisperX-backed transcription service.
+- `apps/transcribe-service/` — WhisperX-backed ASR-only transcription service.
 - `apps/translation-service/` — translation service wrapping DeepL and optional HTTP fallback translation backends.
 
 Each app has its own `pyproject.toml`, dependency set, and installable console scripts so the three runtimes can evolve together without sharing one Python environment.
@@ -69,7 +69,7 @@ TRANSLATION_API_PORT=8876
 
 ## Recommended startup order
 
-1. Start `window-transcribe-transcribe-service-api --warmup`
+1. Start `transcribe-service-api --warmup` or `./apps/transcribe-service/entrypoint.sh --warmup`
 2. Start `window-transcribe-translation-service-api`
 3. Run either:
    - `window-transcribe-shortcut /path/to/video.mp4 --preset en2zh`
@@ -78,5 +78,6 @@ TRANSLATION_API_PORT=8876
 ## API boundaries
 
 - The orchestrator never imports WhisperX, DeepL, or local translation backend implementations directly.
-- The transcribe service owns WhisperX-specific code and exposes transcript data over HTTP.
+- The transcribe service owns WhisperX-specific code and exposes ASR output plus metadata over HTTP.
+- The transcribe service never decides whether translation is needed and never writes subtitle files.
 - The translation service owns translation backend selection and exposes line translation over HTTP.
