@@ -9,7 +9,7 @@ from window_transcribe_shortcut.clients import (
     TranslationServiceClient,
 )
 from window_transcribe_shortcut.config import settings
-from window_transcribe_shortcut.models import JobResult, Segment, Transcript
+from window_transcribe_shortcut.models import JobResult, Transcript
 from window_transcribe_shortcut.presets import Preset
 from window_transcribe_shortcut.utils import ensure_video_file, write_srt
 
@@ -47,16 +47,11 @@ class TranscriptionService:
         logger.info("Detected language: {}", detected_language)
         logger.info("Generated {} transcript segments", len(transcript.segments))
 
-        translation_applied = self._should_translate(
+        transcript, translation_applied = self._translate_if_needed(
+            transcript,
             detected_language=detected_language,
             preset=preset,
         )
-        if translation_applied:
-            transcript = self._translate_transcript(
-                transcript,
-                source_lang=preset.source_lang,
-                target_lang=preset.target_lang,
-            )
 
         write_srt(transcript, output_path)
         logger.info("Wrote subtitle file: {}", output_path)
@@ -73,9 +68,30 @@ class TranscriptionService:
             transcript=transcript,
         )
 
+    def _translate_if_needed(
+        self,
+        transcript: Transcript,
+        *,
+        detected_language: str | None,
+        preset: Preset,
+    ) -> tuple[Transcript, bool]:
+        should_translate = self._should_translate(
+            detected_language=detected_language,
+            preset=preset,
+        )
+        if not should_translate:
+            return transcript, False
+
+        translated = self._translate_transcript(
+            transcript,
+            source_lang=preset.source_lang,
+            target_lang=preset.target_lang,
+        )
+        return translated, True
+
     def _should_translate(self, detected_language: str | None, preset: Preset) -> bool:
         normalized_target = preset.target_lang.lower()
-        normalized_detected = (detected_language or preset.source_lang or "").lower()
+        normalized_detected = self._normalize_language(detected_language or preset.source_lang)
         needs_translation = normalized_detected not in CHINESE_LANGUAGE_CODES
         should_translate = normalized_target == "zh" and needs_translation
         logger.debug(
@@ -86,6 +102,10 @@ class TranscriptionService:
             should_translate,
         )
         return should_translate
+
+    @staticmethod
+    def _normalize_language(value: str | None) -> str:
+        return (value or "").strip().lower()
 
     def _translate_transcript(
         self,

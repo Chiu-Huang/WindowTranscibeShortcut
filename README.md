@@ -3,13 +3,8 @@
 This repository is now a Python mono-repo/workspace with three independently installable applications under `apps/`:
 
 - `apps/orchestrator/` — preset resolution, job coordination, subtitle writing, and the compatibility CLI/API.
-<<<<<<< HEAD
 - `apps/transcribe-service/` — WhisperX-backed ASR-only transcription service.
-- `apps/translation-service/` — translation service wrapping DeepL and optional HTTP fallback translation backends.
-=======
-- `apps/transcribe-service/` — WhisperX-backed transcription service.
-- `apps/translation-service/` — translation service that owns provider selection, backend credentials, and translation HTTP APIs.
->>>>>>> origin/codex/create-translation-service-with-endpoints
+- `apps/translation-service/` — translation service that owns the local Transformers/NLLB translation pipeline and translation HTTP APIs.
 
 Each app has its own `pyproject.toml`, dependency set, and installable console scripts so the three runtimes can evolve together without sharing one Python environment.
 
@@ -63,15 +58,10 @@ TRANSCRIBE_API_PORT=8766
 
 ### Translation service
 ```env
-TRANSLATION_PROVIDER_ORDER=deepl,http,hf_nllb
-DEEPL_API_KEY=your_deepl_key
-DEEPL_BASE_URL=https://api-free.deepl.com/v2
-HTTP_TRANSLATION_ENABLED=false
-HTTP_TRANSLATION_URL=http://127.0.0.1:9988/translate
-HUGGINGFACE_NLLB_ENABLED=false
-HUGGINGFACE_NLLB_URL=
-HUGGINGFACE_NLLB_MODEL=facebook/nllb-200-distilled-600M
-TRANSLATION_REQUEST_TIMEOUT_SECONDS=60
+TRANSLATION_MODEL=facebook/nllb-200-distilled-600M
+TRANSLATION_DEVICE=auto
+TRANSLATION_TORCH_DTYPE=auto
+TRANSLATION_MAX_BATCH_SIZE=8
 TRANSLATION_API_HOST=127.0.0.1
 TRANSLATION_API_PORT=8876
 ```
@@ -86,7 +76,7 @@ TRANSLATION_API_PORT=8876
 
 ## API boundaries
 
-- The orchestrator never imports WhisperX, DeepL, or local translation backend implementations directly.
+- The orchestrator never imports WhisperX or local translation backend implementations directly.
 - The transcribe service owns WhisperX-specific code and exposes ASR output plus metadata over HTTP.
 - The transcribe service never decides whether translation is needed and never writes subtitle files.
-- The translation service owns translation backend selection and exposes line translation over HTTP.
+- The translation service owns translation model loading and exposes line translation over HTTP.
