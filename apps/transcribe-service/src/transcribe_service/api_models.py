@@ -20,14 +20,21 @@ class SegmentResponse(BaseModel):
     text: str
 
 
+class ModelInfoResponse(BaseModel):
+    name: str
+    device: str
+    compute_type: str
+    loaded_language: str | None = None
+
+
 class TranscriptionResponse(BaseModel):
     detected_language: str
-    subtitle_line_count: int
     segments: list[SegmentResponse]
+    model: ModelInfoResponse
+    processing_time_seconds: float
 
 
 class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
-    model_name: str
-    device: str
+    model: ModelInfoResponse

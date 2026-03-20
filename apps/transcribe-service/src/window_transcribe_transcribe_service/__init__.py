@@ -1,1 +1,0 @@
-"""WhisperX transcription service package."""

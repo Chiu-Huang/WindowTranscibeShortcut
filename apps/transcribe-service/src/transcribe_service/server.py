@@ -4,8 +4,8 @@ import argparse
 
 import uvicorn
 
-from window_transcribe_transcribe_service.api import app
-from window_transcribe_transcribe_service.config import settings
+from transcribe_service.api import app
+from transcribe_service.config import settings
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -23,9 +23,13 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.warmup:
-        from window_transcribe_transcribe_service.api import service
+        from transcribe_service.api import service
 
         service.preload_model(source_lang=args.source_lang)
 
     uvicorn.run(app, host=args.host, port=args.port, reload=args.reload, log_config=None)
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

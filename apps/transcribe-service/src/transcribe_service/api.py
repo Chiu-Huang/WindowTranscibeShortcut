@@ -3,24 +3,34 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from loguru import logger
 
-from window_transcribe_transcribe_service.api_models import (
+from transcribe_service.api_models import (
     HealthResponse,
+    ModelInfoResponse,
     SegmentResponse,
     TranscriptionRequest,
     TranscriptionResponse,
     WarmupRequest,
 )
-from window_transcribe_transcribe_service.config import settings
-from window_transcribe_transcribe_service.pipeline import TranscriptionService
+from transcribe_service.pipeline import TranscriptionService
 
 service = TranscriptionService()
 
 
+def _model_response() -> ModelInfoResponse:
+    model = service.model_info
+    return ModelInfoResponse(
+        name=model.name,
+        device=model.device,
+        compute_type=model.compute_type,
+        loaded_language=model.loaded_language,
+    )
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="Window Transcribe Transcribe Service",
+        title="Transcribe Service",
         version="0.1.0",
-        description="WhisperX-only transcription service.",
+        description="ASR-only WhisperX transcription service.",
     )
 
     @app.get("/health", response_model=HealthResponse)
@@ -28,8 +38,7 @@ def create_app() -> FastAPI:
         return HealthResponse(
             status="ok",
             model_loaded=service.is_model_loaded,
-            model_name=settings.whisper_model,
-            device=settings.device,
+            model=_model_response(),
         )
 
     @app.post("/warmup", response_model=HealthResponse)
@@ -41,7 +50,7 @@ def create_app() -> FastAPI:
     @app.post("/transcribe", response_model=TranscriptionResponse)
     def transcribe(request: TranscriptionRequest) -> TranscriptionResponse:
         try:
-            transcript = service.transcribe(request.video.expanduser().resolve(), source_lang=request.source_lang)
+            result = service.transcribe(request.video, source_lang=request.source_lang)
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except RuntimeError as exc:
@@ -51,12 +60,13 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
         return TranscriptionResponse(
-            detected_language=transcript.language or request.source_lang or "unknown",
-            subtitle_line_count=len(transcript.segments),
+            detected_language=result.transcript.language or request.source_lang or "unknown",
             segments=[
                 SegmentResponse(start=segment.start, end=segment.end, text=segment.text)
-                for segment in transcript.segments
+                for segment in result.transcript.segments
             ],
+            model=_model_response(),
+            processing_time_seconds=result.processing_time_seconds,
         )
 
     return app
