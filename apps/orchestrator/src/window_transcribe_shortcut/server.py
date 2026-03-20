@@ -32,5 +32,5 @@ def main() -> int:
         logger.info("Preloading transcription model through the transcribe service")
         service.preload_model()
 
-    uvicorn.run(app, host=args.host, port=args.port, reload=args.reload, log_config=None)
+    uvicorn.run(app, host=args.host, port=args.port, reload=args.reload)
     return 0

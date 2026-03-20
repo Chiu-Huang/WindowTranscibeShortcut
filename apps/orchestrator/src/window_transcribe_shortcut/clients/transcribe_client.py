@@ -40,9 +40,13 @@ class TranscribeServiceClient:
         )
         response.raise_for_status()
         payload = response.json()
+        if not isinstance(payload, dict):
+            raise RuntimeError("Transcribe service response was not an object.")
+
         segments = payload.get("segments")
         if not isinstance(segments, list):
             raise RuntimeError("Transcribe service response is missing a 'segments' list.")
+
         language = str(payload.get("detected_language") or source_lang or "")
         return Transcript(
             language=language,

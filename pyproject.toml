@@ -1,6 +1,3 @@
-[tool.window_transcribe_workspace]
-members = [
-  "apps/orchestrator",
-  "apps/transcribe-service",
-  "apps/translation-service",
-]
+# future workspace plan
+# [tool.uv.workspace]
+# members = [...]

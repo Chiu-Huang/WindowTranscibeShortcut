@@ -27,6 +27,7 @@ class TranscriptionResponse(BaseModel):
     video: Path
     output: Path
     subtitle_line_count: int
+    translation_applied: bool
     segments: list[SegmentResponse]
 
 
