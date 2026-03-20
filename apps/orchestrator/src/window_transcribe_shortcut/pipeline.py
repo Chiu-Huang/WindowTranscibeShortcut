@@ -9,7 +9,7 @@ from window_transcribe_shortcut.clients import (
     TranslationServiceClient,
 )
 from window_transcribe_shortcut.config import settings
-from window_transcribe_shortcut.models import Segment, Transcript
+from window_transcribe_shortcut.models import Transcript
 from window_transcribe_shortcut.utils import write_srt
 
 CHINESE_LANGUAGE_CODES = {"zh", "zh-cn", "zh-tw"}
@@ -81,8 +81,8 @@ class TranscriptionService:
         target_lang: str,
     ) -> Transcript:
         source = source_lang or transcript.language or None
-        translated_segments = self.translation_client.translate_lines(
-            [segment.text for segment in transcript.segments],
+        translated_segments = self.translation_client.translate_segments(
+            transcript.segments,
             source_lang=source,
             target_lang=target_lang,
         )
@@ -96,8 +96,5 @@ class TranscriptionService:
         logger.info("Translated {} subtitle lines to {}", len(translated_segments), target_lang)
         return Transcript(
             language=target_lang.lower(),
-            segments=[
-                Segment(start=segment.start, end=segment.end, text=text)
-                for segment, text in zip(transcript.segments, translated_segments, strict=True)
-            ],
+            segments=translated_segments,
         )

@@ -3,7 +3,7 @@ name = "window-transcribe-translation-service"
 version = "0.1.0"
 description = "Translation service for subtitle lines"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.13"
 dependencies = [
   "fastapi",
   "loguru",

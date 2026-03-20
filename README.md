@@ -3,8 +3,13 @@
 This repository is now a Python mono-repo/workspace with three independently installable applications under `apps/`:
 
 - `apps/orchestrator/` — preset resolution, job coordination, subtitle writing, and the compatibility CLI/API.
+<<<<<<< HEAD
 - `apps/transcribe-service/` — WhisperX-backed ASR-only transcription service.
 - `apps/translation-service/` — translation service wrapping DeepL and optional HTTP fallback translation backends.
+=======
+- `apps/transcribe-service/` — WhisperX-backed transcription service.
+- `apps/translation-service/` — translation service that owns provider selection, backend credentials, and translation HTTP APIs.
+>>>>>>> origin/codex/create-translation-service-with-endpoints
 
 Each app has its own `pyproject.toml`, dependency set, and installable console scripts so the three runtimes can evolve together without sharing one Python environment.
 
@@ -58,10 +63,14 @@ TRANSCRIBE_API_PORT=8766
 
 ### Translation service
 ```env
+TRANSLATION_PROVIDER_ORDER=deepl,http,hf_nllb
 DEEPL_API_KEY=your_deepl_key
 DEEPL_BASE_URL=https://api-free.deepl.com/v2
-LOCAL_TRANSLATION_ENABLED=false
-LOCAL_TRANSLATION_URL=http://127.0.0.1:9988/translate
+HTTP_TRANSLATION_ENABLED=false
+HTTP_TRANSLATION_URL=http://127.0.0.1:9988/translate
+HUGGINGFACE_NLLB_ENABLED=false
+HUGGINGFACE_NLLB_URL=
+HUGGINGFACE_NLLB_MODEL=facebook/nllb-200-distilled-600M
 TRANSLATION_REQUEST_TIMEOUT_SECONDS=60
 TRANSLATION_API_HOST=127.0.0.1
 TRANSLATION_API_PORT=8876

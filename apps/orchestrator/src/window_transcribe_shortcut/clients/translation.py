@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import requests
 
+from window_transcribe_shortcut.models import Segment
+
 
 class TranslationServiceClient:
     def __init__(self, base_url: str, timeout_seconds: float = 300.0) -> None:
@@ -32,3 +34,39 @@ class TranslationServiceClient:
         if not isinstance(translations, list):
             raise RuntimeError("Translation service response is missing a 'translations' list.")
         return [str(item) for item in translations]
+
+    def translate_segments(
+        self,
+        segments: list[Segment],
+        source_lang: str | None,
+        target_lang: str,
+    ) -> list[Segment]:
+        if not segments:
+            return []
+
+        response = requests.post(
+            f"{self.base_url}/translate",
+            json={
+                "segments": [
+                    {"start": segment.start, "end": segment.end, "text": segment.text}
+                    for segment in segments
+                ],
+                "source_lang": source_lang,
+                "target_lang": target_lang,
+            },
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        translated_segments = payload.get("segments")
+        if not isinstance(translated_segments, list):
+            raise RuntimeError("Translation service response is missing a 'segments' list.")
+
+        return [
+            Segment(
+                start=float(item["start"]),
+                end=float(item["end"]),
+                text=str(item["text"]),
+            )
+            for item in translated_segments
+        ]

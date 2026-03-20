@@ -27,7 +27,7 @@ def main() -> int:
 
         service.preload_model(source_lang=args.source_lang)
 
-    uvicorn.run(app, host=args.host, port=args.port, reload=args.reload) # , log_config=None)
+    uvicorn.run(app, host=args.host, port=args.port, reload=args.reload)
     return 0
 
 
