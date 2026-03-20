@@ -85,6 +85,7 @@ repo/
 Recommended responsibility split:
 - `whisperx-api`: FastAPI endpoints, job orchestration, WhisperX, subtitle writing, DeepL-first logic
 - `translation-service`: only translation backends, such as MarianMT / NLLB / M2M100, exposed over HTTP
+- `shared/contracts`: Pydantic-only request/response models shared by the orchestrator, transcription API, and translation API
 
 ### Why this is a good fit
 - Keeps the current API-call approach intact
@@ -106,15 +107,17 @@ Request:
 ```json
 {
   "lines": ["hello", "how are you"],
-  "source_lang": "en",
-  "target_lang": "zh"
+  "source_language": "en",
+  "target_language": "zh"
 }
 ```
 
 Response:
 ```json
 {
-  "translations": ["你好", "你好吗"]
+  "translated_lines": ["你好", "你好吗"],
+  "requested_count": 2,
+  "translated_count": 2
 }
 ```
 
@@ -145,7 +148,14 @@ Example request:
 ```bash
 curl -X POST http://127.0.0.1:8765/transcribe \
   -H "Content-Type: application/json" \
-  -d '{"video":"/absolute/path/to/video.mp4","preset":"en2zh"}'
+  -d '{
+    "input_file_path": "/absolute/path/to/video.mp4",
+    "source_language_hint": "en",
+    "metadata": {
+      "preset": "en2zh",
+      "job_id": "demo-job-001"
+    }
+  }'
 ```
 
 ## Windows drag & drop workflow

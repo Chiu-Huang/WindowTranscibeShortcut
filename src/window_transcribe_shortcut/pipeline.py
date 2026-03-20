@@ -7,6 +7,7 @@ from loguru import logger
 from window_transcribe_shortcut.asr import WhisperXBackend
 from window_transcribe_shortcut.config import settings
 from window_transcribe_shortcut.models import Segment, Transcript
+from shared.contracts import RawTranscriptMetadata, SubtitleSegment, TranscribeResponse, TranslateRequest
 from window_transcribe_shortcut.translators import DeepLTranslator, HTTPTranslationServiceTranslator
 from window_transcribe_shortcut.utils import write_srt
 
@@ -34,20 +35,61 @@ class TranscriptionService:
         output_path: Path,
         source_lang: str | None,
         target_lang: str,
-    ) -> Transcript:
+    ) -> tuple[Transcript, bool]:
         logger.info("Starting transcription for {}", video_path)
         transcript = self.asr.transcribe(video_path, language=source_lang)
         logger.info("Detected language: {}", transcript.language or "unknown")
         logger.info("Generated {} transcript segments", len(transcript.segments))
 
+        translation_applied = False
         if self._should_translate(transcript.language, source_lang, target_lang):
             transcript = self._translate_transcript(
                 transcript, source_lang=source_lang, target_lang=target_lang
             )
+            translation_applied = True
 
         write_srt(transcript, output_path)
         logger.info("Wrote subtitle file: {}", output_path)
-        return transcript
+        return transcript, translation_applied
+
+    def transcribe_only(self, video_path: Path, source_lang: str | None) -> TranscribeResponse:
+        logger.info("Starting transcription for {}", video_path)
+        transcript = self.asr.transcribe(video_path, language=source_lang)
+        logger.info("Detected language: {}", transcript.language or "unknown")
+        logger.info("Generated {} transcript segments", len(transcript.segments))
+        return self.build_transcribe_response(
+            transcript=transcript,
+            input_file_path=video_path,
+            source_lang=source_lang,
+        )
+
+    def translate_segments(
+        self,
+        segments: list[SubtitleSegment],
+        source_lang: str,
+        target_lang: str,
+    ) -> list[SubtitleSegment]:
+        request = TranslateRequest(
+            segments=segments,
+            source_language=source_lang,
+            target_language=target_lang,
+        )
+        translated_lines = self._translate_lines(
+            [segment.text for segment in request.segments or []],
+            source_lang=request.source_language,
+            target_lang=request.target_language,
+        )
+        if translated_lines is None:
+            raise RuntimeError("No translation backend is available.")
+        if len(translated_lines) != len(segments):
+            raise RuntimeError(
+                "Translation backend returned a different number of lines "
+                f"({len(translated_lines)}) than requested ({len(segments)})."
+            )
+        return [
+            SubtitleSegment(start=segment.start, end=segment.end, text=text)
+            for segment, text in zip(segments, translated_lines, strict=True)
+        ]
 
     def _should_translate(
         self, detected_language: str | None, source_lang: str | None, target_lang: str
@@ -139,6 +181,31 @@ class TranscriptionService:
             return translator.translate_lines(lines, source_lang, target_lang)
         except Exception as exc:
             raise RuntimeError(f"Local translation service failed: {exc}") from exc
+
+    def build_transcribe_response(
+        self,
+        transcript: Transcript,
+        input_file_path: Path,
+        source_lang: str | None,
+        output_subtitle_path: Path | None = None,
+    ) -> TranscribeResponse:
+        detected_language = transcript.language or source_lang or "unknown"
+        segments = [
+            SubtitleSegment(start=segment.start, end=segment.end, text=segment.text)
+            for segment in transcript.segments
+        ]
+        return TranscribeResponse(
+            detected_language=detected_language,
+            segments=segments,
+            raw_transcript_metadata=RawTranscriptMetadata(
+                provider="whisperx",
+                input_file_path=input_file_path,
+                segment_count=len(segments),
+                language_hint=source_lang,
+                model_name=settings.whisper_model,
+                output_subtitle_path=output_subtitle_path,
+            ),
+        )
 
 
 if __name__ == "__main__":
