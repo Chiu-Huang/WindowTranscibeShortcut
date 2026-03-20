@@ -19,19 +19,13 @@ class TranslationServiceClient:
         if not lines:
             return []
 
-        response = requests.post(
-            f"{self.base_url}/translate",
-            json={
+        payload = self._post_json(
+            {
                 "lines": lines,
                 "source_lang": source_lang,
                 "target_lang": target_lang,
-            },
-            timeout=self.timeout_seconds,
+            }
         )
-        response.raise_for_status()
-        payload = response.json()
-        if not isinstance(payload, dict):
-            raise RuntimeError("Translation service response was not an object.")
 
         translations = payload.get("translations")
         if not isinstance(translations, list):
@@ -47,20 +41,16 @@ class TranslationServiceClient:
         if not segments:
             return []
 
-        response = requests.post(
-            f"{self.base_url}/translate",
-            json={
+        payload = self._post_json(
+            {
                 "segments": [
                     {"start": segment.start, "end": segment.end, "text": segment.text}
                     for segment in segments
                 ],
                 "source_lang": source_lang,
                 "target_lang": target_lang,
-            },
-            timeout=self.timeout_seconds,
+            }
         )
-        response.raise_for_status()
-        payload = response.json()
         translated_segments = payload.get("segments")
         if not isinstance(translated_segments, list):
             raise RuntimeError("Translation service response is missing a 'segments' list.")
@@ -73,3 +63,15 @@ class TranslationServiceClient:
             )
             for item in translated_segments
         ]
+
+    def _post_json(self, payload: dict[str, object]) -> dict[str, object]:
+        response = requests.post(
+            f"{self.base_url}/translate",
+            json=payload,
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, dict):
+            raise RuntimeError("Translation service response was not an object.")
+        return data
