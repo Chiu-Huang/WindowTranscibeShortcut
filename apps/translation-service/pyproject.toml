@@ -9,6 +9,8 @@ dependencies = [
   "loguru",
   "pydantic-settings",
   "requests",
+  "torch",
+  "transformers",
   "uvicorn",
 ]
 

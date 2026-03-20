@@ -60,3 +60,6 @@ class HealthResponse(BaseModel):
     status: str
     provider_order: list[str]
     providers: list[ProviderInfoResponse]
+    model: str
+    device: str
+    loaded: bool
