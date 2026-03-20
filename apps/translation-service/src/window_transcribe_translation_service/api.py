@@ -11,22 +11,42 @@ from window_transcribe_translation_service.api_models import (
     ProviderFailureResponse,
     ProviderInfoResponse,
     ProvidersResponse,
+    SubtitleSegment,
     TranslationErrorResponse,
     TranslationRequest,
     TranslationResponse,
 )
 from window_transcribe_translation_service.pipeline import TranslationService
-from window_transcribe_translation_service.providers import TranslationProviderError, TranslationServiceError
+from window_transcribe_translation_service.providers import (
+    ProviderFailure,
+    TranslationProviderError,
+    TranslationServiceError,
+)
 
 service = TranslationService()
 
 
-def _provider_failures(failures: list[object]) -> list[ProviderFailureResponse]:
+def _provider_failures(failures: list[ProviderFailure]) -> list[ProviderFailureResponse]:
     return [ProviderFailureResponse(**asdict(failure)) for failure in failures]
 
 
 def _provider_info_rows(rows: list[dict[str, object]]) -> list[ProviderInfoResponse]:
     return [ProviderInfoResponse(**row) for row in rows]
+
+
+def _translation_response(
+    provider: str,
+    translations: list[str],
+    *,
+    segments: list[SubtitleSegment] | None = None,
+    failures: list[ProviderFailure] | None = None,
+) -> TranslationResponse:
+    return TranslationResponse(
+        provider=provider,
+        translations=translations,
+        segments=segments,
+        failures=_provider_failures(failures or []),
+    )
 
 
 def create_app() -> FastAPI:
@@ -57,7 +77,7 @@ def create_app() -> FastAPI:
         return service.warmup()
 
     @app.post("/translate", response_model=TranslationResponse)
-    def translate(request: TranslationRequest):
+    def translate(request: TranslationRequest) -> TranslationResponse | JSONResponse:
         try:
             if request.segments is not None:
                 attempt, translated_segments = service.translate_segments(
@@ -66,11 +86,11 @@ def create_app() -> FastAPI:
                     target_lang=request.target_lang,
                     provider=request.provider,
                 )
-                return TranslationResponse(
+                return _translation_response(
                     provider=attempt.provider,
                     translations=attempt.translations,
                     segments=translated_segments,
-                    failures=_provider_failures(attempt.failures),
+                    failures=attempt.failures,
                 )
 
             attempt = service.translate_lines(
@@ -79,10 +99,10 @@ def create_app() -> FastAPI:
                 target_lang=request.target_lang,
                 provider=request.provider,
             )
-            return TranslationResponse(
+            return _translation_response(
                 provider=attempt.provider,
                 translations=attempt.translations,
-                failures=_provider_failures(attempt.failures),
+                failures=attempt.failures,
             )
         except HTTPException as exc:
             return JSONResponse(

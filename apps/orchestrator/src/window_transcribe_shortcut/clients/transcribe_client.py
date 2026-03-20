@@ -13,35 +13,21 @@ class TranscribeServiceClient:
         self.timeout_seconds = timeout_seconds
 
     def health(self) -> dict[str, object]:
-        response = requests.get(f"{self.base_url}/health", timeout=self.timeout_seconds)
-        response.raise_for_status()
-        payload = response.json()
-        if not isinstance(payload, dict):
-            raise RuntimeError("Transcribe service health response was not an object.")
-        return payload
+        return self._get_json("/health", "health")
 
     def preload(self, source_lang: str | None = None) -> dict[str, object]:
-        response = requests.post(
-            f"{self.base_url}/warmup",
-            json={"source_lang": source_lang},
-            timeout=self.timeout_seconds,
+        return self._post_json(
+            "/warmup",
+            {"source_lang": source_lang},
+            "warmup",
         )
-        response.raise_for_status()
-        payload = response.json()
-        if not isinstance(payload, dict):
-            raise RuntimeError("Transcribe service warmup response was not an object.")
-        return payload
 
     def transcribe(self, video_path: Path, source_lang: str | None) -> Transcript:
-        response = requests.post(
-            f"{self.base_url}/transcribe",
-            json={"video": str(video_path), "source_lang": source_lang},
-            timeout=self.timeout_seconds,
+        payload = self._post_json(
+            "/transcribe",
+            {"video": str(video_path), "source_lang": source_lang},
+            "transcription",
         )
-        response.raise_for_status()
-        payload = response.json()
-        if not isinstance(payload, dict):
-            raise RuntimeError("Transcribe service response was not an object.")
 
         segments = payload.get("segments")
         if not isinstance(segments, list):
@@ -60,3 +46,29 @@ class TranscribeServiceClient:
                 if isinstance(segment, dict)
             ],
         )
+
+    def _get_json(self, path: str, operation: str) -> dict[str, object]:
+        response = requests.get(f"{self.base_url}{path}", timeout=self.timeout_seconds)
+        response.raise_for_status()
+        return self._decode_json_object(response, operation)
+
+    def _post_json(
+        self,
+        path: str,
+        payload: dict[str, object],
+        operation: str,
+    ) -> dict[str, object]:
+        response = requests.post(
+            f"{self.base_url}{path}",
+            json=payload,
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        return self._decode_json_object(response, operation)
+
+    @staticmethod
+    def _decode_json_object(response: requests.Response, operation: str) -> dict[str, object]:
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"Transcribe service {operation} response was not an object.")
+        return payload
