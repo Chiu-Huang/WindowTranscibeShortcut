@@ -1,20 +1,27 @@
 # Translation service
 
-This app owns translation provider selection and all backend-specific configuration.
+Standalone translation-only service that owns local Transformers/Torch model loading and subtitle line translation.
 
-## Entrypoints
+## Setup
 
-- Console script: `window-transcribe-translation-service-api`
-- Module: `python -m window_transcribe_translation_service`
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+cp .env.example .env
+```
 
-## Environment
+## Run
 
-Copy `.env.example` to `.env` inside `apps/translation-service/` and configure the providers you want to enable.
+```bash
+python -m window_transcribe_translation_service --warmup
+```
 
-## API
+## Endpoints
 
 - `GET /health`
 - `GET /providers`
+- `POST /warmup`
 - `POST /translate`
 
-`POST /translate` accepts either raw `lines` or timestamped `segments` and validates that the provider returns the same number of items that it received.
+`POST /translate` accepts either raw `lines` or timestamped `segments`, uses the local Transformers pipeline for translation, and returns the same number of translated items that it received.
