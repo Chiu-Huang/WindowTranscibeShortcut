@@ -1,53 +1,54 @@
 from __future__ import annotations
 
-from loguru import logger
+from dataclasses import asdict
 
+from window_transcribe_translation_service.api_models import SubtitleSegment
 from window_transcribe_translation_service.config import settings
-from window_transcribe_translation_service.translators import (
-    DeepLTranslator,
-    HTTPTranslationServiceTranslator,
-)
+from window_transcribe_translation_service.providers import ProviderRouter, TranslationAttempt
 
 
 class TranslationService:
+    def __init__(self) -> None:
+        self.router = ProviderRouter.from_settings(settings)
+
+    def health_summary(self) -> tuple[list[str], list[dict[str, object]]]:
+        providers = [asdict(descriptor) for descriptor in self.router.list_providers()]
+        return settings.translation_provider_order, providers
+
+    def list_providers(self) -> list[dict[str, object]]:
+        return [asdict(descriptor) for descriptor in self.router.list_providers()]
+
     def translate_lines(
         self,
         lines: list[str],
+        *,
         source_lang: str | None,
         target_lang: str,
-    ) -> list[str]:
-        deepl_configured = bool(
-            settings.deepl_api_key and settings.deepl_api_key != "your_deepl_api_key"
+        provider: str | None = None,
+    ) -> TranslationAttempt:
+        return self.router.translate_lines(
+            lines,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            provider_name=provider,
         )
 
-        if deepl_configured:
-            logger.info("Translating transcript to {} via DeepL", target_lang)
-            translator = DeepLTranslator(settings.deepl_api_key, settings.deepl_base_url)
-            try:
-                return translator.translate_lines(lines, source_lang, target_lang)
-            except Exception as exc:
-                if not settings.local_translation_enabled:
-                    raise RuntimeError(f"DeepL translation failed: {exc}") from exc
-                logger.warning(
-                    "DeepL translation failed ({}). Falling back to local translation service.",
-                    exc,
-                )
-        else:
-            logger.info("DeepL is not configured; checking local translation fallback.")
-
-        if not settings.local_translation_enabled:
-            raise RuntimeError("No translation backend is available.")
-
-        logger.info(
-            "Translating transcript to {} via local translation service at {}",
-            target_lang,
-            settings.local_translation_url,
+    def translate_segments(
+        self,
+        segments: list[SubtitleSegment],
+        *,
+        source_lang: str | None,
+        target_lang: str,
+        provider: str | None = None,
+    ) -> tuple[TranslationAttempt, list[SubtitleSegment]]:
+        attempt = self.translate_lines(
+            [segment.text for segment in segments],
+            source_lang=source_lang,
+            target_lang=target_lang,
+            provider=provider,
         )
-        translator = HTTPTranslationServiceTranslator(
-            settings.local_translation_url,
-            timeout_seconds=settings.translation_request_timeout_seconds,
-        )
-        try:
-            return translator.translate_lines(lines, source_lang, target_lang)
-        except Exception as exc:
-            raise RuntimeError(f"Local translation service failed: {exc}") from exc
+        translated_segments = [
+            SubtitleSegment(start=segment.start, end=segment.end, text=text)
+            for segment, text in zip(segments, attempt.translations, strict=True)
+        ]
+        return attempt, translated_segments

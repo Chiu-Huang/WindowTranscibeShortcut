@@ -1,48 +1,96 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from dataclasses import asdict
+
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from loguru import logger
 
 from window_transcribe_translation_service.api_models import (
     HealthResponse,
+    ProviderFailureResponse,
+    ProviderInfoResponse,
+    ProvidersResponse,
+    TranslationErrorResponse,
     TranslationRequest,
     TranslationResponse,
 )
-from window_transcribe_translation_service.config import settings
+from window_transcribe_translation_service.providers import TranslationServiceError
 from window_transcribe_translation_service.pipeline import TranslationService
 
 service = TranslationService()
+
+
+def _provider_failures(failures: list[object]) -> list[ProviderFailureResponse]:
+    return [ProviderFailureResponse(**asdict(failure)) for failure in failures]
+
+
+def _provider_info_rows(rows: list[dict[str, object]]) -> list[ProviderInfoResponse]:
+    return [ProviderInfoResponse(**row) for row in rows]
 
 
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Window Transcribe Translation Service",
         version="0.1.0",
-        description="Translation-only service wrapping the configured translation backends.",
+        description="Translation-only service wrapping configured translation backends.",
     )
 
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
+        provider_order, providers = service.health_summary()
         return HealthResponse(
             status="ok",
-            deepl_configured=bool(settings.deepl_api_key and settings.deepl_api_key != "your_deepl_api_key"),
-            local_translation_enabled=settings.local_translation_enabled,
+            provider_order=provider_order,
+            providers=_provider_info_rows(providers),
         )
 
+    @app.get("/providers", response_model=ProvidersResponse)
+    def providers() -> ProvidersResponse:
+        return ProvidersResponse(providers=_provider_info_rows(service.list_providers()))
+
     @app.post("/translate", response_model=TranslationResponse)
-    def translate(request: TranslationRequest) -> TranslationResponse:
+    def translate(request: TranslationRequest):
         try:
-            translations = service.translate_lines(
-                request.lines,
+            if request.segments is not None:
+                attempt, translated_segments = service.translate_segments(
+                    request.segments,
+                    source_lang=request.source_lang,
+                    target_lang=request.target_lang,
+                    provider=request.provider,
+                )
+                return TranslationResponse(
+                    provider=attempt.provider,
+                    translations=attempt.translations,
+                    segments=translated_segments,
+                    failures=_provider_failures(attempt.failures),
+                )
+
+            attempt = service.translate_lines(
+                request.lines or [],
                 source_lang=request.source_lang,
                 target_lang=request.target_lang,
+                provider=request.provider,
             )
-        except RuntimeError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            return TranslationResponse(
+                provider=attempt.provider,
+                translations=attempt.translations,
+                failures=_provider_failures(attempt.failures),
+            )
+        except TranslationServiceError as exc:
+            return JSONResponse(
+                status_code=502,
+                content=TranslationErrorResponse(
+                    error=str(exc),
+                    failures=_provider_failures(exc.failures),
+                ).model_dump(),
+            )
         except Exception as exc:  # pragma: no cover
             logger.exception("Unhandled translation failure: {}", exc)
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-        return TranslationResponse(translations=translations)
+            return JSONResponse(
+                status_code=500,
+                content=TranslationErrorResponse(error=str(exc)).model_dump(),
+            )
 
     return app
 
