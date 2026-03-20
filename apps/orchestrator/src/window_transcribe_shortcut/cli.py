@@ -10,7 +10,7 @@ from loguru import logger
 from window_transcribe_shortcut.config import settings
 from window_transcribe_shortcut.pipeline import TranscriptionService
 from window_transcribe_shortcut.presets import DEFAULT_PRESET, PRESETS, Preset
-from window_transcribe_shortcut.utils import ensure_video_file, resolve_output_path
+from window_transcribe_shortcut.utils import resolve_output_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -67,16 +67,15 @@ def run_cli(args: argparse.Namespace | None = None) -> int:
         _show_config()
         return 0
 
-    video = ensure_video_file(parsed_args.video)
     preset = PRESETS[parsed_args.preset]
-    output = resolve_output_path(video, parsed_args.output, settings.output_dir)
+    output = resolve_output_path(parsed_args.video, parsed_args.output, settings.output_dir)
 
     logger.info("Using preset {} ({})", preset.name, preset.description)
     logger.debug("Effective run arguments: {}", asdict(preset))
-    logger.debug("Video input: {}", video)
+    logger.debug("Video input: {}", parsed_args.video)
     logger.debug("Subtitle output: {}", output)
 
     service = TranscriptionService()
-    service.run(video, output, source_lang=preset.source_lang, target_lang=preset.target_lang)
-    print(f"Done! Subtitle saved to: {output}")
+    result = service.run(parsed_args.video, output, preset=preset)
+    print(f"Done! Subtitle saved to: {result.output}")
     return 0

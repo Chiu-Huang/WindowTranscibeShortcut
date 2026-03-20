@@ -12,7 +12,7 @@ from window_transcribe_shortcut.api_models import (
 from window_transcribe_shortcut.config import settings
 from window_transcribe_shortcut.pipeline import TranscriptionService
 from window_transcribe_shortcut.presets import PRESETS
-from window_transcribe_shortcut.utils import ensure_video_file, resolve_output_path
+from window_transcribe_shortcut.utils import resolve_output_path
 
 service = TranscriptionService()
 
@@ -20,7 +20,7 @@ service = TranscriptionService()
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Window Transcribe Shortcut API",
-        version="0.3.0",
+        version="0.4.0",
         description="Orchestrator API coordinating the transcribe and translation services.",
     )
 
@@ -60,14 +60,8 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail=f"Unknown preset: {request.preset}") from exc
 
         try:
-            video = ensure_video_file(request.video)
-            output = resolve_output_path(video, request.output, settings.output_dir)
-            transcript = service.run(
-                video,
-                output,
-                source_lang=preset.source_lang,
-                target_lang=preset.target_lang,
-            )
+            output = resolve_output_path(request.video, request.output, settings.output_dir)
+            result = service.run(request.video, output, preset=preset)
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except RuntimeError as exc:
@@ -76,18 +70,18 @@ def create_app() -> FastAPI:
             logger.exception("Unhandled API transcription failure: {}", exc)
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-        detected_language = transcript.language or preset.source_lang or "unknown"
         return TranscriptionResponse(
-            preset=preset.name,
-            source_language=preset.source_lang or "auto",
-            target_language=preset.target_lang,
-            detected_language=detected_language,
-            video=video,
-            output=output,
-            subtitle_line_count=len(transcript.segments),
+            preset=result.preset,
+            source_language=result.source_language,
+            target_language=result.target_language,
+            detected_language=result.detected_language,
+            video=result.video,
+            output=result.output,
+            subtitle_line_count=result.subtitle_line_count,
+            translation_applied=result.translation_applied,
             segments=[
                 SegmentResponse(start=segment.start, end=segment.end, text=segment.text)
-                for segment in transcript.segments
+                for segment in result.transcript.segments
             ],
         )
 

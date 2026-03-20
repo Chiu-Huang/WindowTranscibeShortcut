@@ -28,6 +28,9 @@ class TranslationServiceClient:
         )
         response.raise_for_status()
         payload = response.json()
+        if not isinstance(payload, dict):
+            raise RuntimeError("Translation service response was not an object.")
+
         translations = payload.get("translations")
         if not isinstance(translations, list):
             raise RuntimeError("Translation service response is missing a 'translations' list.")

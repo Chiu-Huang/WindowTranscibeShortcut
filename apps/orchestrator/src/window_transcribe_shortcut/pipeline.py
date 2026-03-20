@@ -9,8 +9,9 @@ from window_transcribe_shortcut.clients import (
     TranslationServiceClient,
 )
 from window_transcribe_shortcut.config import settings
-from window_transcribe_shortcut.models import Segment, Transcript
-from window_transcribe_shortcut.utils import write_srt
+from window_transcribe_shortcut.models import JobResult, Segment, Transcript
+from window_transcribe_shortcut.presets import Preset
+from window_transcribe_shortcut.utils import ensure_video_file, write_srt
 
 CHINESE_LANGUAGE_CODES = {"zh", "zh-cn", "zh-tw"}
 
@@ -34,45 +35,57 @@ class TranscriptionService:
     def preload_model(self, source_lang: str | None = None) -> None:
         self.transcribe_client.preload(source_lang=source_lang)
 
-    def run(
-        self,
-        video_path: Path,
-        output_path: Path,
-        source_lang: str | None,
-        target_lang: str,
-    ) -> Transcript:
-        logger.info("Starting orchestrated subtitle job for {}", video_path)
-        transcript = self.transcribe_client.transcribe(video_path, source_lang=source_lang)
-        logger.info("Detected language: {}", transcript.language or "unknown")
+    def run(self, video_path: Path, output_path: Path, preset: Preset) -> JobResult:
+        resolved_video = ensure_video_file(video_path)
+        logger.info("Starting orchestrated subtitle job for {}", resolved_video)
+
+        transcript = self.transcribe_client.transcribe(
+            resolved_video,
+            source_lang=preset.source_lang,
+        )
+        detected_language = transcript.language or preset.source_lang or "unknown"
+        logger.info("Detected language: {}", detected_language)
         logger.info("Generated {} transcript segments", len(transcript.segments))
 
-        if self._should_translate(transcript.language, source_lang, target_lang):
+        translation_applied = self._should_translate(
+            detected_language=detected_language,
+            preset=preset,
+        )
+        if translation_applied:
             transcript = self._translate_transcript(
                 transcript,
-                source_lang=source_lang,
-                target_lang=target_lang,
+                source_lang=preset.source_lang,
+                target_lang=preset.target_lang,
             )
 
         write_srt(transcript, output_path)
         logger.info("Wrote subtitle file: {}", output_path)
-        return transcript
 
-    def _should_translate(
-        self,
-        detected_language: str | None,
-        source_lang: str | None,
-        target_lang: str,
-    ) -> bool:
-        normalized_target = target_lang.lower()
-        normalized_source = (detected_language or source_lang or "").lower()
-        needs_translation = normalized_source not in CHINESE_LANGUAGE_CODES
-        logger.debug(
-            "Translation decision: target={}, source={}, translate={}",
-            normalized_target,
-            normalized_source or "unknown",
-            normalized_target == "zh" and needs_translation,
+        return JobResult(
+            preset=preset.name,
+            source_language=preset.source_lang or "auto",
+            target_language=preset.target_lang,
+            detected_language=detected_language,
+            video=resolved_video,
+            output=output_path,
+            subtitle_line_count=len(transcript.segments),
+            translation_applied=translation_applied,
+            transcript=transcript,
         )
-        return normalized_target == "zh" and needs_translation
+
+    def _should_translate(self, detected_language: str | None, preset: Preset) -> bool:
+        normalized_target = preset.target_lang.lower()
+        normalized_detected = (detected_language or preset.source_lang or "").lower()
+        needs_translation = normalized_detected not in CHINESE_LANGUAGE_CODES
+        should_translate = normalized_target == "zh" and needs_translation
+        logger.debug(
+            "Translation decision: preset={}, target={}, detected={}, translate={}",
+            preset.name,
+            normalized_target,
+            normalized_detected or "unknown",
+            should_translate,
+        )
+        return should_translate
 
     def _translate_transcript(
         self,
