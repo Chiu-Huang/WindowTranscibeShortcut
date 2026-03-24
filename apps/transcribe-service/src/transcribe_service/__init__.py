@@ -1,0 +1,1 @@
+"""Standalone WhisperX transcription service."""

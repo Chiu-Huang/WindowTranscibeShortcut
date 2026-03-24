@@ -1,28 +1,3 @@
-[project]
-name = "window-transcribe-shortcut"
-version = "0.1.0"
-description = "Auto transcription and translation to Chinese"
-readme = "README.md"
-requires-python = ">=3.10"
-dependencies = [
-  "loguru",
-  "pydantic-settings",
-  "requests",
-  "fastapi",
-  "uvicorn",
-  "whisperx",
-]
-
-[project.scripts]
-window-transcribe-shortcut = "window_transcribe_shortcut.main:main"
-window-transcribe-shortcut-api = "window_transcribe_shortcut.server:main"
-
-[build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
+# future workspace plan
+# [tool.uv.workspace]
+# members = [...]

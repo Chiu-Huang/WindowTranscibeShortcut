@@ -34,3 +34,5 @@ window_transcribe_shortcut.egg-info/
 
 .env
 command.md
+
+*.egg-info
