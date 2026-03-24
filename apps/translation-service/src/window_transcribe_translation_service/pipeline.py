@@ -7,7 +7,9 @@ from typing import Any
 
 import torch
 from fastapi import HTTPException
-from transformers import pipeline
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
+
 
 from window_transcribe_translation_service.api_models import SubtitleSegment
 from window_transcribe_translation_service.config import settings
@@ -51,7 +53,7 @@ TORCH_DTYPES = {
 
 class TranslationEngine:
     provider_name = "local_transformers"
-    provider_description = "Local Transformers/Torch translation pipeline"
+    provider_description = "Local Transformers/Torch translation engine"
 
     def __init__(
         self,
@@ -60,12 +62,17 @@ class TranslationEngine:
         device: str,
         torch_dtype: str,
         max_batch_size: int,
+        max_length: int = 256,
     ) -> None:
         self.model_name = model_name
         self.max_batch_size = max_batch_size
+        self.max_length = max_length
         self.device_index, self.device_label = self._resolve_device(device)
         self.torch_dtype = self._resolve_torch_dtype(torch_dtype)
-        self._pipeline = None
+
+        self.device = torch.device("cuda" if self.device_label == "cuda" else "cpu")
+        self._model: AutoModelForSeq2SeqLM | None = None
+        self._tokenizers: dict[str, Any] = {}
 
     @staticmethod
     def _resolve_device(device: str) -> tuple[int, str]:
@@ -104,7 +111,7 @@ class TranslationEngine:
 
     @property
     def is_loaded(self) -> bool:
-        return self._pipeline is not None
+        return self._model is not None
 
     def describe(self) -> ProviderDescriptor:
         return ProviderDescriptor(
@@ -122,39 +129,100 @@ class TranslationEngine:
             "device": self.device_label,
             "loaded": self.is_loaded,
             "max_batch_size": self.max_batch_size,
+            "max_length": self.max_length,
         }
 
     def warmup(self) -> None:
-        if self._pipeline is not None:
+        if self._model is not None:
             return
 
-        LOGGER.info("Loading translation pipeline for %s on %s", self.model_name, self.device_label)
+        LOGGER.info(
+            "Loading translation model for %s on %s", self.model_name, self.device_label
+        )
         model_kwargs: dict[str, Any] = {}
         if self.torch_dtype is not None:
             model_kwargs["torch_dtype"] = self.torch_dtype
-        self._pipeline = pipeline(
-            task="translation",
-            model=self.model_name,
-            device=self.device_index,
-            model_kwargs=model_kwargs,
-        )
 
-    def translate(self, lines: list[str], source_lang: str, target_lang: str) -> list[str]:
+        self._model = AutoModelForSeq2SeqLM.from_pretrained(
+            self.model_name,
+            **model_kwargs,
+        )
+        self._model.to(self.device)
+        self._model.eval()
+
+    def _get_tokenizer(self, source_lang: str):
+        tokenizer = self._tokenizers.get(source_lang)
+        if tokenizer is None:
+            LOGGER.info(
+                "Loading tokenizer for %s with src_lang=%s",
+                self.model_name,
+                source_lang,
+            )
+            tokenizer = AutoTokenizer.from_pretrained(
+                self.model_name,
+                src_lang=source_lang,
+            )
+            self._tokenizers[source_lang] = tokenizer
+        return tokenizer
+
+    def translate(
+        self, lines: list[str], source_lang: str, target_lang: str
+    ) -> list[str]:
         if not lines:
             return []
 
         self.warmup()
-        assert self._pipeline is not None
-        outputs = self._pipeline(
-            lines,
-            src_lang=source_lang,
-            tgt_lang=target_lang,
-            batch_size=min(len(lines), self.max_batch_size),
-            clean_up_tokenization_spaces=True,
-        )
-        return [str(item["translation_text"]) for item in outputs]
+        assert self._model is not None
+
+        tokenizer = self._get_tokenizer(source_lang)
+        results: list[str] = []
+        batch_size = min(len(lines), self.max_batch_size)
+
+        for start in range(0, len(lines), batch_size):
+            chunk = lines[start : start + batch_size]
+
+            inputs = tokenizer(
+                chunk,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=self.max_length,
+            )
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+
+            forced_bos_token_id = tokenizer.convert_tokens_to_ids(target_lang)
+            if forced_bos_token_id is None:
+                raise TranslationProviderError(
+                    self.provider_name,
+                    f"Unsupported target language code for model: {target_lang}",
+                    error_type="configuration_error",
+                )
+
+            with torch.inference_mode():
+                generated_tokens = self._model.generate(
+                    **inputs,
+                    forced_bos_token_id=forced_bos_token_id,
+                    max_length=self.max_length,
+                )
+
+            decoded = tokenizer.batch_decode(
+                generated_tokens,
+                skip_special_tokens=True,
+                clean_up_tokenization_spaces=True,
+            )
+            results.extend(decoded)
+
+        return results
 
 
+# @lru_cache(maxsize=1)
+# def get_engine() -> TranslationEngine:
+#     return TranslationEngine(
+#         model_name=settings.model_name,
+#         device=settings.device,
+#         torch_dtype=settings.torch_dtype,
+#         max_batch_size=settings.max_batch_size,
+#     )
 @lru_cache(maxsize=1)
 def get_engine() -> TranslationEngine:
     return TranslationEngine(
@@ -162,12 +230,15 @@ def get_engine() -> TranslationEngine:
         device=settings.device,
         torch_dtype=settings.torch_dtype,
         max_batch_size=settings.max_batch_size,
+        max_length=getattr(settings, "max_length", 256),
     )
-
 
 def normalize_lang(value: str | None) -> str:
     if value is None:
-        raise HTTPException(status_code=400, detail="source_lang is required for the local translation model.")
+        raise HTTPException(
+            status_code=400,
+            detail="source_lang is required for the local translation model.",
+        )
     stripped = value.strip()
     normalized = stripped.replace("_", "-").lower()
     if stripped in LANGUAGE_ALIASES.values():
@@ -181,7 +252,9 @@ class TranslationService:
     def __init__(self) -> None:
         self.engine = get_engine()
 
-    def health_summary(self) -> tuple[list[str], list[dict[str, object]], dict[str, Any]]:
+    def health_summary(
+        self,
+    ) -> tuple[list[str], list[dict[str, object]], dict[str, Any]]:
         provider = asdict(self.engine.describe())
         return [self.engine.provider_name], [provider], self.engine.health_summary()
 
@@ -218,7 +291,9 @@ class TranslationService:
             translations = lines[:]
         else:
             try:
-                translations = self.engine.translate(lines, normalized_source, normalized_target)
+                translations = self.engine.translate(
+                    lines, normalized_source, normalized_target
+                )
             except HTTPException:
                 raise
             except TranslationProviderError:

@@ -3,7 +3,7 @@ name = "window-transcribe-shortcut-orchestrator"
 version = "0.1.0"
 description = "Orchestrator app for subtitle jobs"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12, <3.13"
 dependencies = [
   "fastapi",
   "loguru",
