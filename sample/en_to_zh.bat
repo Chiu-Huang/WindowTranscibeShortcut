@@ -13,6 +13,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$response = Invoke-RestMethod -Uri $env:API_URL -Method Post -ContentType 'application/json' -Body $payload;" ^
   "Write-Host ('Done! Subtitle saved to: ' + $response.output)"
 if errorlevel 1 (
-  echo API request failed. Make sure the FastAPI server is running: ..\scripts\start_api_server.bat
+  echo API request failed. Make sure the FastAPI server is running: ..\scripts\start_all_servers.bat
   pause
 )
